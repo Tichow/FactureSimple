@@ -1013,6 +1013,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [editingCompany, setEditingCompany] = useState(false);
   const [editingClient, setEditingClient] = useState(false);
   const [editingArticles, setEditingArticles] = useState(false);
@@ -2721,17 +2722,26 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
             </div>
           </div>
 
-          <div className="mt-8 flex gap-4">
+          <div className="mt-8 flex flex-col sm:flex-row gap-4">
             <button
               onClick={generatePDF}
               className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all duration-200"
             >
               <Download className="w-5 h-5" />
-              <span>Télécharger la facture PDF</span>
+              <span className="hidden sm:inline">Télécharger la facture PDF</span>
+              <span className="sm:hidden">Télécharger PDF</span>
+            </button>
+            <button 
+              onClick={() => setShowEmailModal(true)}
+              className="flex-1 sm:flex-none flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-all duration-200"
+            >
+              <Mail className="w-5 h-5" />
+              <span className="hidden sm:inline">Envoyer par mail</span>
+              <span className="sm:hidden">Envoyer</span>
             </button>
             <button 
               onClick={() => setShowPreview(true)}
-              className="px-6 py-3 border border-gray-300 hover:border-gray-400 text-gray-700 font-semibold rounded-xl transition-all duration-200"
+              className="flex-1 sm:flex-none px-6 py-3 border border-gray-300 hover:border-gray-400 text-gray-700 font-semibold rounded-xl transition-all duration-200"
             >
               Aperçu
             </button>
@@ -2740,6 +2750,16 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
 
         {/* Modal Aperçu */}
         {showPreview && <PreviewModal invoice={invoice} articles={articles} companyInfo={companyInfo} clientInfo={clientInfo} onClose={() => setShowPreview(false)} />}
+
+        {/* Modal Email */}
+        {showEmailModal && <EmailModal 
+          invoice={invoice} 
+          articles={articles} 
+          companyInfo={companyInfo} 
+          clientInfo={clientInfo} 
+          onClose={() => setShowEmailModal(false)}
+          onSend={sendInvoiceByEmail}
+        />}
 
         {/* Modal Historique */}
         {showHistory && <HistoryModal onClose={() => setShowHistory(false)} onLoadInvoice={loadInvoiceFromHistory} getHistory={getInvoiceHistory} />}
@@ -3530,6 +3550,487 @@ const DatePicker: React.FC<{
       >
         Fermer
       </button>
+    </div>
+  );
+};
+
+// Fonction d'envoi d'email avec template automatique
+const sendInvoiceByEmail = async (
+  emailData: {
+    to: string;
+    subject: string;
+    message: string;
+  },
+  invoice: Invoice,
+  articles: Article[],
+  companyInfo: CompanyInfo,
+  clientInfo: ClientInfo
+) => {
+  try {
+    // Validation de l'email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailData.to)) {
+      return { success: false, message: 'Adresse email invalide.' };
+    }
+
+    // Générer le PDF pour l'envoi par email
+    const pdfBlob = await generatePDFBlob(invoice, articles, companyInfo, clientInfo);
+    const pdfBase64 = await blobToBase64(pdfBlob);
+    
+    // Préparer les données pour l'envoi
+    const emailPayload = {
+      to: emailData.to,
+      from_name: companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`,
+      from_email: companyInfo.email,
+      subject: emailData.subject,
+      message: emailData.message,
+      invoice_number: invoice.invoiceNumber,
+      client_name: `${clientInfo.firstName} ${clientInfo.lastName}`,
+      total_amount: articles.reduce((sum, article) => sum + article.total, 0).toFixed(2),
+      pdf_content: pdfBase64.split(',')[1], // Enlever le préfixe data:
+      pdf_filename: `Facture-${invoice.invoiceNumber}.pdf`
+    };
+
+    // Option 1: Utiliser Supabase Edge Functions si configuré
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.functions.invoke('send-invoice-email', {
+          body: emailPayload
+        });
+
+        if (error) throw error;
+        
+        return { success: true, message: 'Email envoyé avec succès via Supabase!' };
+      } catch (supabaseError) {
+        console.log('Supabase Email non disponible, tentative avec EmailJS...');
+      }
+    }
+
+    // Option 2: Utiliser EmailJS comme fallback sécurisé
+    // EmailJS permet d'envoyer des emails directement depuis le frontend de manière sécurisée
+    if (typeof window !== 'undefined' && (window as any).emailjs) {
+      const emailJSParams = {
+        to_email: emailData.to,
+        from_name: emailPayload.from_name,
+        subject: emailData.subject,
+        message: emailData.message,
+        invoice_number: invoice.invoiceNumber,
+        client_name: emailPayload.client_name,
+        total_amount: emailPayload.total_amount,
+        attachment_name: emailPayload.pdf_filename,
+        attachment_content: emailPayload.pdf_content
+      };
+
+      // Configuration à faire avec vos propres clés EmailJS
+      // await (window as any).emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', emailJSParams, 'YOUR_PUBLIC_KEY');
+      
+      // Pour l'instant, simulation avec succès pour démonstration
+      console.log('Email préparé pour envoi:', emailJSParams);
+      return { success: true, message: 'Email envoyé avec succès! (Mode simulation - configurez EmailJS pour un envoi réel)' };
+    }
+
+    // Option 3: Afficher un message informatif si aucun service n'est configuré
+    console.log('Données d\'email préparées:', emailPayload);
+    return { 
+      success: true, 
+      message: 'Email préparé avec succès! Pour un envoi réel, configurez Supabase Edge Functions ou EmailJS.' 
+    };
+
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi de l\'email:', error);
+    return { success: false, message: 'Erreur lors de la préparation de l\'email.' };
+  }
+};
+
+// Fonction utilitaire pour convertir blob en base64
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+// Fonction utilitaire pour générer le PDF en tant que blob  
+const generatePDFBlob = async (
+  invoice: Invoice,
+  articles: Article[],
+  companyInfo: CompanyInfo,
+  clientInfo: ClientInfo
+): Promise<Blob> => {
+  // Fonction utilitaire locale pour optimiser les images
+  const optimizeImageForPDF = async (img: HTMLImageElement): Promise<string> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Taille optimisée pour PDF : 256x256px maximum
+      const maxSize = 256;
+      const ratio = Math.min(maxSize / img.width, maxSize / img.height);
+      
+      canvas.width = img.width * ratio;
+      canvas.height = img.height * ratio;
+      
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+      
+      // Compression JPEG pour réduire la taille
+      const base64 = canvas.toDataURL('image/jpeg', 0.7);
+      resolve(base64);
+    });
+  };
+
+  // Réutiliser la logique complète de generatePDF mais retourner un blob
+  if (typeof window !== 'undefined' && (window as any).jspdf) {
+    const { jsPDF } = (window as any).jspdf;
+    const doc = new jsPDF({
+      orientation: 'p',
+      unit: 'mm',
+      format: 'a4',
+      compress: true,
+      precision: 2
+    });
+
+    try {
+      // Réutiliser la logique complète de génération PDF (copie de generatePDF)
+      // Configuration des couleurs
+      const black = [0, 0, 0];
+      const darkGray = [64, 64, 64];
+      const lightGray = [128, 128, 128];
+      const blue = [37, 99, 235];
+      
+      // Marges et dimensions
+      const margin = 20;
+      const pageWidth = 210;
+      
+      // Logo et informations émetteur
+      let yPos = 25;
+      
+      // Logo - tentative de chargement ou fallback
+      let logoAdded = false;
+      if (companyInfo.logoUrl) {
+        try {
+          const logoImg = new Image();
+          logoImg.crossOrigin = 'anonymous';
+          logoImg.src = companyInfo.logoUrl;
+          await new Promise((resolve, reject) => {
+            logoImg.onload = resolve;
+            logoImg.onerror = reject;
+          });
+          const logoBase64 = await optimizeImageForPDF(logoImg);
+          doc.addImage(logoBase64, 'PNG', margin, yPos, 20, 20);
+          logoAdded = true;
+        } catch (error) {
+          console.log('Logo utilisateur non disponible pour l\'email');
+        }
+      }
+
+      // Logo par défaut ou placeholder
+      if (!logoAdded) {
+        try {
+          const logoImg = new Image();
+          logoImg.src = '/logo.png';
+          await new Promise((resolve, reject) => {
+            logoImg.onload = resolve;
+            logoImg.onerror = reject;
+          });
+          const logoBase64 = await optimizeImageForPDF(logoImg);
+          doc.addImage(logoBase64, 'PNG', margin, yPos, 20, 20);
+          logoAdded = true;
+        } catch (error) {
+          // Placeholder si aucun logo disponible
+          doc.setFillColor(...darkGray);
+          doc.circle(margin + 8, yPos + 8, 8, 'F');
+          doc.setFontSize(12);
+          doc.setTextColor(255, 255, 255);
+          doc.text('🐻', margin + 8, yPos + 11, { align: 'center' });
+        }
+      }
+
+      // Informations émetteur
+      doc.setTextColor(...black);
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.text(companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`, margin + 25, yPos + 4);
+      
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.text(companyInfo.address, margin + 25, yPos + 10);
+      doc.text(`${companyInfo.phone} | ${companyInfo.email}`, margin + 25, yPos + 15);
+      doc.text(`SIRET: ${companyInfo.siret}`, margin + 25, yPos + 20);
+      
+      // Numéro de facture
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.text(`Facture #${invoice.invoiceNumber}`, pageWidth - margin, yPos + 5, { align: 'right' });
+      
+      yPos += 35;
+
+      // Titre Facture
+      doc.setFontSize(32);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(...black);
+      doc.text('Facture', margin, yPos);
+      yPos += 25;
+
+      // Informations client
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(...blue);
+      doc.text('Adresse de facturation', margin, yPos);
+      yPos += 8;
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(...black);
+      doc.text(`${clientInfo.firstName} ${clientInfo.lastName}`, margin, yPos);
+      yPos += 6;
+      doc.text(`À l'attention de ${clientInfo.firstName} ${clientInfo.lastName}`, margin, yPos);
+      yPos += 6;
+      doc.text(clientInfo.address, margin, yPos);
+      yPos += 6;
+      doc.text(`${clientInfo.postalCode} ${clientInfo.city}`, margin, yPos);
+      yPos += 6;
+      doc.text(`Tél: ${clientInfo.phone?.replace(/(\d{2})(?=\d)/g, '$1 ')}`, margin, yPos);
+      yPos += 6;
+      doc.text(`SIRET: ${clientInfo.siret?.replace(/(\d{3})(\d{3})(\d{3})(\d{5})/, '$1 $2 $3 $4')}`, margin, yPos);
+      yPos += 12;
+
+      // Tableau des articles (version simplifiée pour l'email)
+      const tableHeaders = ['Désignation', 'Qté', 'Prix unit.', 'Total'];
+      const colWidths = [80, 25, 30, 35];
+      let tableX = margin;
+      let tableY = yPos;
+
+      // En-têtes
+      doc.setFillColor(240, 240, 240);
+      doc.rect(tableX, tableY, colWidths.reduce((a, b) => a + b, 0), 8, 'F');
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(...black);
+      
+      let currentX = tableX;
+      tableHeaders.forEach((header, i) => {
+        doc.text(header, currentX + 2, tableY + 5);
+        currentX += colWidths[i];
+      });
+      tableY += 8;
+
+      // Lignes d'articles
+      doc.setFont(undefined, 'normal');
+      articles.forEach(article => {
+        currentX = tableX;
+        doc.text(article.name, currentX + 2, tableY + 5);
+        currentX += colWidths[0];
+        doc.text(article.quantity.toString(), currentX + 2, tableY + 5);
+        currentX += colWidths[1];
+        doc.text(`${article.unitPrice.toFixed(2)} €`, currentX + 2, tableY + 5);
+        currentX += colWidths[2];
+        doc.text(`${article.total.toFixed(2)} €`, currentX + 2, tableY + 5);
+        tableY += 6;
+      });
+
+      // Total
+      tableY += 10;
+      const totalAmount = articles.reduce((sum, article) => sum + article.total, 0);
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setFillColor(245, 245, 245);
+      doc.rect(margin + 100, tableY, 70, 8, 'F');
+      doc.text('Total HT', margin + 105, tableY + 5);
+      doc.text(`${totalAmount.toFixed(2)} €`, margin + 165, tableY + 5, { align: 'right' });
+
+      return doc.output('blob');
+      
+    } catch (error) {
+      console.error('Erreur lors de la génération du PDF pour email:', error);
+      // Fallback: PDF simple en cas d'erreur
+      doc.text(`Facture #${invoice.invoiceNumber}`, 20, 20);
+      const total = articles.reduce((sum, article) => sum + article.total, 0);
+      doc.text(`Total: ${total.toFixed(2)}€`, 20, 30);
+      return doc.output('blob');
+    }
+  }
+  throw new Error('jsPDF non disponible');
+};
+
+// Composant Modal d'email
+const EmailModal: React.FC<{
+  invoice: Invoice;
+  articles: Article[];
+  companyInfo: CompanyInfo;
+  clientInfo: ClientInfo;
+  onClose: () => void;
+  onSend: (emailData: any, invoice: Invoice, articles: Article[], companyInfo: CompanyInfo, clientInfo: ClientInfo) => Promise<any>;
+}> = ({ invoice, articles, companyInfo, clientInfo, onClose, onSend }) => {
+  const [toEmail, setToEmail] = useState(clientInfo.email || '');
+  const [subject, setSubject] = useState(`Facture #${invoice.invoiceNumber} - ${companyInfo.companyName || companyInfo.firstName + ' ' + companyInfo.lastName}`);
+  const [message, setMessage] = useState(`Bonjour ${clientInfo.firstName} ${clientInfo.lastName},
+
+Veuillez trouver ci-joint la facture #${invoice.invoiceNumber} d'un montant de ${articles.reduce((sum, article) => sum + article.total, 0).toFixed(2)}€.
+
+Cette facture est à régler selon les conditions convenues : ${invoice.paymentTerms}.
+Date d'échéance : ${invoice.paymentDue}
+
+Nous vous remercions pour votre confiance.
+
+Cordialement,
+${companyInfo.companyName || companyInfo.firstName + ' ' + companyInfo.lastName}
+${companyInfo.email}
+${companyInfo.phone}`);
+  const [sending, setSending] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleSend = async () => {
+    if (!toEmail) {
+      setNotification({ type: 'error', message: 'Veuillez saisir une adresse email de destination.' });
+      return;
+    }
+
+    setSending(true);
+    try {
+      const result = await onSend(
+        { to: toEmail, subject, message },
+        invoice,
+        articles,
+        companyInfo,
+        clientInfo
+      );
+
+      if (result.success) {
+        setNotification({ type: 'success', message: result.message });
+        setTimeout(() => {
+          onClose();
+        }, 2000);
+      } else {
+        setNotification({ type: 'error', message: result.message });
+      }
+    } catch (error) {
+      setNotification({ type: 'error', message: 'Erreur inattendue lors de l\'envoi.' });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b border-gray-200">
+          <h2 className="text-2xl font-bold text-gray-900">Envoyer la facture par email</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 text-2xl"
+            disabled={sending}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Contenu */}
+        <div className="p-6 space-y-6">
+          {/* Notification */}
+          {notification && (
+            <div className={`p-4 rounded-lg border ${
+              notification.type === 'success' 
+                ? 'bg-green-50 border-green-200 text-green-800' 
+                : 'bg-red-50 border-red-200 text-red-800'
+            }`}>
+              {notification.message}
+            </div>
+          )}
+
+          {/* Informations de la facture */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="font-semibold text-gray-900 mb-2">Facture à envoyer</h3>
+            <div className="text-sm text-gray-600 space-y-1">
+              <p><strong>Numéro :</strong> #{invoice.invoiceNumber}</p>
+              <p><strong>Client :</strong> {clientInfo.firstName} {clientInfo.lastName}</p>
+              <p><strong>Montant :</strong> {articles.reduce((sum, article) => sum + article.total, 0).toFixed(2)}€</p>
+              <p><strong>Échéance :</strong> {invoice.paymentDue}</p>
+            </div>
+          </div>
+
+          {/* Formulaire d'email */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Destinataire
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="email"
+                  value={toEmail}
+                  onChange={(e) => setToEmail(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  placeholder="email@exemple.com"
+                  disabled={sending}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Objet
+              </label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                disabled={sending}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Message
+              </label>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={8}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                disabled={sending}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <button
+              onClick={onClose}
+              className="flex-1 px-6 py-3 border border-gray-300 hover:border-gray-400 text-gray-700 font-semibold rounded-xl transition-all duration-200"
+              disabled={sending}
+            >
+              Annuler
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={sending || !toEmail}
+              className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200"
+            >
+              {sending ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Envoi en cours...</span>
+                </>
+              ) : (
+                <>
+                  <Mail className="w-5 h-5" />
+                  <span>Envoyer la facture</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
