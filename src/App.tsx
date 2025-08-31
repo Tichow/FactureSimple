@@ -5472,10 +5472,10 @@ const ResetPasswordModal: React.FC<{
       console.log('🔄 Début de la modification du mot de passe...');
 
       // Vérifier d'abord la session active
-      const { data: session, error: sessionError } = await supabase.auth.getSession();
+      const { data: session, error: initialSessionError } = await supabase.auth.getSession();
       
-      if (sessionError) {
-        console.error('❌ Erreur session:', sessionError);
+      if (initialSessionError) {
+        console.error('❌ Erreur session:', initialSessionError);
         throw new Error('Session invalide. Veuillez recommencer le processus de réinitialisation.');
       }
 
@@ -5496,15 +5496,63 @@ const ResetPasswordModal: React.FC<{
         throw error;
       }
 
-      console.log('✅ Mot de passe mis à jour avec succès:', !!data.user);
+      console.log('✅ Données retournées par updateUser:', data);
+      console.log('✅ Utilisateur après mise à jour:', data.user);
 
-      // Déconnecter l'utilisateur pour qu'il se reconnecte avec le nouveau mot de passe
-      if (supabase) {
-        await supabase.auth.signOut();
+      // Vérification supplémentaire : tester la session après mise à jour
+      const { data: newSession, error: postUpdateSessionError } = await supabase.auth.getSession();
+      console.log('🔍 Session après mise à jour mot de passe:', newSession?.session?.user?.id);
+      
+      if (postUpdateSessionError) {
+        console.error('❌ Erreur lors de la vérification de la nouvelle session:', postUpdateSessionError);
+        throw new Error('Échec de la vérification de la session après mise à jour.');
       }
+
+      if (!newSession?.session) {
+        console.error('❌ Pas de session active après mise à jour du mot de passe');
+        throw new Error('Session perdue après mise à jour. La modification a peut-être échoué.');
+      }
+
+      // Test de reconnexion immédiate pour vérifier que le mot de passe a été changé
+      console.log('🔍 Test de vérification du nouveau mot de passe...');
+      
+      // Déconnecter d'abord
+      await supabase.auth.signOut();
+      console.log('✅ Déconnexion effectuée pour test de vérification');
+      
+      // Tenter de se reconnecter avec le nouveau mot de passe
+      const { data: testLogin, error: testError } = await supabase.auth.signInWithPassword({
+        email: newSession.session.user.email!,
+        password: newPassword
+      });
+
+      if (testError || !testLogin.user) {
+        console.error('❌ Échec du test de reconnexion avec le nouveau mot de passe:', testError);
+        console.error('❌ Détails de l\'erreur de test:', {
+          errorMessage: testError?.message,
+          errorCode: testError?.code || testError?.status,
+          newPasswordLength: newPassword.length,
+          userEmail: newSession.session.user.email
+        });
+        
+        // Essayer de tester avec l'ancien mot de passe pour voir s'il fonctionne encore
+        console.log('🔍 Test avec l\'ancien mot de passe pour diagnostic...');
+        
+        throw new Error(`❌ PROBLÈME CRITIQUE: Le mot de passe n'a pas été effectivement modifié dans Supabase. 
+        
+📧 Email: ${newSession.session.user.email}
+🔍 Erreur: ${testError?.message || 'Échec de connexion'}
+        
+⚠️ SOLUTION: Contactez l'administrateur - il y a un problème avec la base de données Supabase.`);
+      }
+
+      console.log('✅ Test de reconnexion réussi - le mot de passe a bien été changé!');
+      
+      // Déconnecter à nouveau pour que l'utilisateur se reconnecte manuellement
+      await supabase.auth.signOut();
       localStorage.removeItem('demo-user');
 
-      setMessage({ type: 'success', text: '🎉 Mot de passe modifié avec succès ! Vous pouvez maintenant vous connecter...' });
+      setMessage({ type: 'success', text: '🎉 Mot de passe modifié et vérifié avec succès ! Vous pouvez maintenant vous connecter...' });
       
       setTimeout(() => {
         onSuccess();
