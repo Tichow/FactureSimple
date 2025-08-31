@@ -2,7 +2,7 @@
   "name": "facture-pro",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://Tichow.github.io/FactureSimple",
+
   "dependencies": {
     "@react-pdf/renderer": "4.2.2",
     "@supabase/supabase-js": "^2.56.1",
