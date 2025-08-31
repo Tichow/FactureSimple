@@ -706,7 +706,7 @@ const LandingPage: React.FC<{ onGetStarted: () => void }> = ({ onGetStarted }) =
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
-      <header className="px-6 py-4">
+      <header className="px-6 py-3 sm:py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <img 
@@ -720,26 +720,26 @@ const LandingPage: React.FC<{ onGetStarted: () => void }> = ({ onGetStarted }) =
       </header>
 
       {/* Hero Section */}
-      <main className="px-6 py-20">
+      <main className="px-6 py-8 sm:py-12 md:py-16">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-medium mb-8">
+          <div className="inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-medium mb-6 sm:mb-8">
             Facturation simplifiée ✨
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-bold text-gray-900 leading-tight mb-6">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 leading-tight mb-4 sm:mb-6">
             Créez vos factures
             <span className="block text-blue-600">en quelques clics</span>
           </h1>
           
-          <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-gray-600 mb-8 sm:mb-10 md:mb-12 max-w-2xl mx-auto leading-relaxed px-4 sm:px-0">
             Une solution de facturation ultra-simple et épurée. 
             Générez vos factures professionnelles en 30 secondes.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12 sm:mb-16 md:mb-20">
             <button 
               onClick={onGetStarted}
-              className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
+              className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl text-lg"
             >
               Commencer
             </button>
@@ -748,7 +748,7 @@ const LandingPage: React.FC<{ onGetStarted: () => void }> = ({ onGetStarted }) =
         </div>
 
         {/* Features */}
-        <div className="max-w-6xl mx-auto mt-24 grid md:grid-cols-3 gap-8">
+        <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-6 sm:gap-8">
           {[
             {
               title: "Simple & Rapide",
@@ -847,7 +847,7 @@ const AuthPage: React.FC<{
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md">
         <button 
           onClick={onBack}
@@ -856,12 +856,12 @@ const AuthPage: React.FC<{
           ← Retour
         </button>
         
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">
+        <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+          <div className="text-center mb-6 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
               {mode === 'signin' ? 'Connexion' : 'Créer un compte'}
             </h2>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 mt-2 text-sm sm:text-base">
               {mode === 'signin' 
                 ? 'Connectez-vous à votre compte' 
                 : 'Créez votre compte gratuitement'
