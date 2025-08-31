@@ -556,8 +556,12 @@ const InvoiceApp: React.FC = () => {
       return;
     }
     
-    if (password.length < 6) {
-      setMessage({ type: 'error', text: 'Le mot de passe doit contenir au moins 6 caractères.' });
+    const passwordEvaluation = evaluatePasswordStrength(password);
+    if (!passwordEvaluation.isValid) {
+      setMessage({ 
+        type: 'error', 
+        text: `🔒 Mot de passe trop faible. Il manque : ${passwordEvaluation.missingRequirements.join(', ')}.`
+      });
       setLoading(false);
       return;
     }
@@ -977,9 +981,19 @@ const AuthPage: React.FC<{
       return;
     }
     
-    if (mode === 'signup' && password !== confirmPassword) {
-      setMessage({ type: 'error', text: 'Les mots de passe ne correspondent pas.' });
-      return;
+    if (mode === 'signup') {
+      const passwordEvaluation = evaluatePasswordStrength(password);
+      if (!passwordEvaluation.isValid) {
+        setMessage({ 
+          type: 'error', 
+          text: `🔒 Mot de passe trop faible. Il manque : ${passwordEvaluation.missingRequirements.join(', ')}.`
+        });
+        return;
+      }
+      if (password !== confirmPassword) {
+        setMessage({ type: 'error', text: '🔒 Les mots de passe ne correspondent pas. Vérifiez la saisie.' });
+        return;
+      }
     }
     
     onAuth(email, password, setMessage);
@@ -1065,24 +1079,25 @@ const AuthPage: React.FC<{
             <div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Mot de passe"
-                  className="w-full pl-11 pr-11 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
+                              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Mot de passe"
+                className="w-full pl-11 pr-11 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
+            {mode === 'signup' && <PasswordStrengthIndicator password={password} />}
+          </div>
 
             {mode === 'signup' && (
               <div>
@@ -1151,6 +1166,7 @@ const AuthPage: React.FC<{
 
 // Composant Dashboard
 const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, onLogout }) => {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [invoice, setInvoice] = useState<Invoice>(() => {
     const today = new Date();
     const invoiceNumber = `${today.getFullYear()}-${today.getMonth() + 1}-${String(13).padStart(4, '0')}`;
@@ -2662,7 +2678,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
             )}
             
             <button
-              onClick={onLogout}
+              onClick={() => setShowLogoutConfirm(true)}
               className="flex items-center space-x-2 text-red-600 hover:text-red-800 px-3 py-2 rounded-lg hover:bg-red-50 transition-all duration-200"
             >
               <LogOut className="w-4 h-4" />
@@ -3618,6 +3634,42 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
           />
         )}
       </main>
+
+      {/* Modale de confirmation de déconnexion */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4">
+                <LogOut className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Confirmer la déconnexion
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Êtes-vous sûr de vouloir vous déconnecter ? Vos modifications non sauvegardées seront perdues.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => {
+                    setShowLogoutConfirm(false);
+                    onLogout();
+                  }}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
+                >
+                  Me déconnecter
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -5269,6 +5321,99 @@ const SettingsModal: React.FC<{
   );
 };
 
+// Fonction d'évaluation de la force du mot de passe
+function evaluatePasswordStrength(password: string) {
+  const requirements = {
+    length: password.length >= 6,
+    hasLetter: /[a-zA-Z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+    hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+  };
+
+  const metRequirements = Object.values(requirements).filter(Boolean).length;
+  
+  let strength: 'weak' | 'medium' | 'strong' = 'weak';
+  let color = 'red';
+  let message = '';
+
+  if (metRequirements >= 4) {
+    strength = 'strong';
+    color = 'green';
+    message = '🟢 Mot de passe fort';
+  } else if (metRequirements >= 3) {
+    strength = 'medium';
+    color = 'yellow';
+    message = '🟡 Mot de passe moyen';
+  } else {
+    strength = 'weak';
+    color = 'red';
+    message = '🔴 Mot de passe faible';
+  }
+
+  const missingRequirements = [];
+  if (!requirements.length) missingRequirements.push('au moins 6 caractères');
+  if (!requirements.hasLetter) missingRequirements.push('des lettres');
+  if (!requirements.hasNumber) missingRequirements.push('des chiffres');
+  if (!requirements.hasSpecial) missingRequirements.push('des caractères spéciaux (!@#$%...)');
+
+  return {
+    strength,
+    color,
+    message,
+    requirements,
+    missingRequirements,
+    isValid: metRequirements >= 3 // Au moins 3 critères pour être acceptable
+  };
+}
+
+// Composant indicateur de force de mot de passe
+const PasswordStrengthIndicator: React.FC<{ password: string }> = ({ password }) => {
+  if (!password) return null;
+
+  const evaluation = evaluatePasswordStrength(password);
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex items-center space-x-2">
+        <div className="flex-1 bg-gray-200 rounded-full h-2">
+          <div 
+            className={`h-2 rounded-full transition-all duration-300 ${
+              evaluation.strength === 'strong' 
+                ? 'bg-green-500 w-full' 
+                : evaluation.strength === 'medium' 
+                  ? 'bg-yellow-500 w-2/3' 
+                  : 'bg-red-500 w-1/3'
+            }`}
+          />
+        </div>
+        <span className={`text-sm font-medium ${
+          evaluation.strength === 'strong' 
+            ? 'text-green-600' 
+            : evaluation.strength === 'medium' 
+              ? 'text-yellow-600' 
+              : 'text-red-600'
+        }`}>
+          {evaluation.message}
+        </span>
+      </div>
+      
+      {evaluation.missingRequirements.length > 0 && (
+        <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded-lg">
+          <p className="font-medium mb-1">Manque :</p>
+          <ul className="space-y-0.5">
+            {evaluation.missingRequirements.map((req, index) => (
+              <li key={index} className="flex items-center space-x-1">
+                <span className="text-red-500">•</span>
+                <span>{req}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Fonction utilitaire pour calculer l'échéance de paiement
 function calculatePaymentDue(invoiceDate: Date, terms: string): string {
   if (!terms || typeof terms !== 'string') {
@@ -5308,8 +5453,12 @@ const ResetPasswordModal: React.FC<{
       return;
     }
 
-    if (newPassword.length < 6) {
-      setMessage({ type: 'error', text: '📏 Le mot de passe doit contenir au moins 6 caractères pour votre sécurité.' });
+    const passwordEvaluation = evaluatePasswordStrength(newPassword);
+    if (!passwordEvaluation.isValid) {
+      setMessage({ 
+        type: 'error', 
+        text: `🔒 Mot de passe trop faible. Il manque : ${passwordEvaluation.missingRequirements.join(', ')}.`
+      });
       return;
     }
 
@@ -5437,24 +5586,25 @@ const ResetPasswordModal: React.FC<{
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type={showPassword ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Nouveau mot de passe"
-                className="w-full pl-11 pr-11 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
+                          <input
+              type={showPassword ? "text" : "password"}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Nouveau mot de passe"
+              className="w-full pl-11 pr-11 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
           </div>
+          <PasswordStrengthIndicator password={newPassword} />
+        </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
