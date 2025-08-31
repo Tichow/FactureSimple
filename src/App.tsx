@@ -664,6 +664,21 @@ const InvoiceApp: React.FC = () => {
     setCurrentView('landing');
   };
 
+  const handleResendEmail = async (email: string) => {
+    if (!supabase || !isSupabaseConfigured) {
+      throw new Error('Service d\'email non configuré');
+    }
+    
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+    });
+    
+    if (error) {
+      throw error;
+    }
+  };
+
 
 
   if (currentView === 'landing') {
@@ -678,6 +693,7 @@ const InvoiceApp: React.FC = () => {
         onAuth={handleAuth}
         loading={loading}
         onBack={() => setCurrentView('landing')}
+        onResendEmail={handleResendEmail}
       />
     );
   }
@@ -765,15 +781,14 @@ const AuthPage: React.FC<{
   onAuth: (email: string, password: string, setMessage: (msg: { type: 'success' | 'error' | 'info'; text: string } | null) => void) => void;
   loading: boolean;
   onBack: () => void;
-}> = ({ mode, onToggleMode, onAuth, loading, onBack }) => {
+  onResendEmail?: (email: string) => Promise<void>;
+}> = ({ mode, onToggleMode, onAuth, loading, onBack, onResendEmail }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
-  const [isResendingEmail, setIsResendingEmail] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
   const [showResendButton, setShowResendButton] = useState(false);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -782,31 +797,14 @@ const AuthPage: React.FC<{
     }
   };
 
-  // Gérer le cooldown pour le renvoi d'email
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    if (resendCooldown > 0) {
-      interval = setInterval(() => {
-        setResendCooldown(prev => {
-          if (prev <= 1) {
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [resendCooldown]);
-
   // Détecter si l'utilisateur a besoin de confirmer son email
   useEffect(() => {
-    if (message?.text.includes('Veuillez confirmer votre email') || 
-        message?.text.includes('confirmer votre adresse email')) {
+    if (message?.text.includes('lien de confirmation') || 
+        message?.text.includes('confirmer votre') ||
+        message?.text.includes('n\'est pas encore confirmé')) {
       const timer = setTimeout(() => {
         setShowResendButton(true);
-      }, 5000); // Attendre 5 secondes avant de montrer le bouton
+      }, 3000);
       return () => clearTimeout(timer);
     } else {
       setShowResendButton(false);
@@ -815,39 +813,20 @@ const AuthPage: React.FC<{
 
   // Fonction pour renvoyer l'email de confirmation
   const handleResendEmail = async () => {
-    if (!email || resendCooldown > 0 || isResendingEmail || !supabase) return;
-    
-    setIsResendingEmail(true);
-    setMessage({ type: 'info', text: 'Envoi du nouveau lien de confirmation...' });
+    if (!email || !onResendEmail) return;
     
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
+      await onResendEmail(email);
+      setMessage({ 
+        type: 'success', 
+        text: `Nouveau lien envoyé à ${email} !` 
       });
-      
-      if (error) {
-        console.error('Erreur renvoi email:', error);
-        setMessage({ 
-          type: 'error', 
-          text: 'Erreur lors du renvoi de l\'email. Veuillez réessayer plus tard.' 
-        });
-      } else {
-        setMessage({ 
-          type: 'success', 
-          text: `Nouveau lien de confirmation envoyé à ${email}. Vérifiez votre boîte mail et vos spams.` 
-        });
-        setResendCooldown(60); // Cooldown de 60 secondes
-        setShowResendButton(false);
-      }
+      setShowResendButton(false);
     } catch (error) {
-      console.error('Erreur inattendue:', error);
       setMessage({ 
         type: 'error', 
-        text: 'Une erreur inattendue s\'est produite. Veuillez réessayer.' 
+        text: 'Erreur lors du renvoi. Réessayez dans quelques minutes.' 
       });
-    } finally {
-      setIsResendingEmail(false);
     }
   };
 
@@ -911,28 +890,18 @@ const AuthPage: React.FC<{
                 </button>
               )}
               
-              {/* Bouton de renvoi d'email de confirmation */}
-              {(showResendButton || (message.text.includes('confirmer') && email)) && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <p className="text-xs text-gray-600 mb-2">
-                    Vous n'avez pas reçu l'email ? Vérifiez vos spams ou :
+              {/* Lien de renvoi d'email simple */}
+              {showResendButton && (
+                <div className="mt-3 pt-3 border-t border-gray-200 text-center">
+                  <p className="text-sm text-gray-600">
+                    Vous n'avez pas reçu l'email ? {' '}
+                    <button
+                      onClick={handleResendEmail}
+                      className="text-blue-600 hover:text-blue-800 underline font-medium"
+                    >
+                      Renvoyer le lien
+                    </button>
                   </p>
-                  <button
-                    onClick={handleResendEmail}
-                    disabled={resendCooldown > 0 || isResendingEmail || !email}
-                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-all duration-200 ${
-                      resendCooldown > 0 || isResendingEmail || !email
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-800'
-                    }`}
-                  >
-                    {isResendingEmail 
-                      ? 'Envoi en cours...' 
-                      : resendCooldown > 0 
-                        ? `Renvoyer (${resendCooldown}s)`
-                        : 'Renvoyer l\'email'
-                    }
-                  </button>
                 </div>
               )}
             </div>
