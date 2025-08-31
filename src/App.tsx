@@ -347,9 +347,10 @@ interface SavedInvoice {
 // Composant principal de l'application
 const InvoiceApp: React.FC = () => {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [currentView, setCurrentView] = useState<'landing' | 'auth' | 'dashboard'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'auth' | 'dashboard' | 'reset-password'>('landing');
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [loading, setLoading] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   // Injection des styles CSS personnalisés
   useEffect(() => {
@@ -453,6 +454,50 @@ const InvoiceApp: React.FC = () => {
 
   // Vérification de l'état d'authentification avec Supabase
   useEffect(() => {
+    // Vérifier si on vient d'un lien de reset password
+    const urlParams = new URLSearchParams(window.location.search);
+    const isReset = urlParams.get('reset') === 'true';
+    
+    if (isReset) {
+      console.log('🔄 Paramètre reset détecté, vérification de la session...');
+      
+      // Vérifier si on a une session valide pour le reset
+      if (supabase && isSupabaseConfigured) {
+        supabase.auth.getSession().then(({ data: sessionData, error }) => {
+          if (error) {
+            console.error('❌ Erreur lors de la vérification de session:', error);
+            setCurrentView('auth');
+            // Déclencher un événement pour afficher l'erreur dans AuthPage
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('resetSessionError', {
+                detail: '🔗 Lien de réinitialisation expiré. Demandez un nouveau lien.'
+              }));
+            }, 100);
+          } else if (sessionData?.session) {
+            console.log('✅ Session valide pour reset, ouverture du modal');
+            setShowResetModal(true);
+            setCurrentView('auth');
+          } else {
+            console.log('⚠️ Pas de session active pour reset');
+            setCurrentView('auth');
+            // Déclencher un événement pour afficher l'erreur dans AuthPage
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('resetSessionError', {
+                detail: '⏰ Session expirée. Cliquez à nouveau sur le lien dans votre email ou demandez un nouveau lien.'
+              }));
+            }, 100);
+          }
+          
+          // Nettoyer l'URL dans tous les cas
+          window.history.replaceState({}, document.title, window.location.pathname);
+        });
+      } else {
+        setCurrentView('auth');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      return;
+    }
+
     if (!isSupabaseConfigured) {
       // Mode local : vérifier localStorage pour la démo
       const savedUser = localStorage.getItem('demo-user');
@@ -480,13 +525,17 @@ const InvoiceApp: React.FC = () => {
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, session) => {
+          console.log('🔐 Auth state change:', event, !!session?.user);
+          
           if (session?.user) {
             const appUser = convertSupabaseUser(session.user);
             setUser(appUser);
             setCurrentView('dashboard');
           } else {
             setUser(null);
-            setCurrentView('landing');
+            if (currentView === 'dashboard') {
+              setCurrentView('landing');
+            }
           }
         }
       );
@@ -655,12 +704,21 @@ const InvoiceApp: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    console.log('🔐 Déconnexion sécurisée en cours...');
+    
     if (isSupabaseConfigured && supabase) {
       await supabase.auth.signOut();
-    } else {
-      localStorage.removeItem('demo-user');
     }
+    
+    // SÉCURITÉ : Toujours nettoyer le localStorage
+    localStorage.removeItem('demo-user');
+    
+    // SÉCURITÉ : Nettoyer complètement l'état de l'application
     setUser(null);
+    setAuthMode('signin');
+    setLoading(false);
+    
+    console.log('🔐 Déconnexion terminée, redirection vers landing');
     setCurrentView('landing');
   };
 
@@ -687,18 +745,38 @@ const InvoiceApp: React.FC = () => {
 
   if (currentView === 'auth') {
     return (
-      <AuthPage 
-        mode={authMode}
-        onToggleMode={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
-        onAuth={handleAuth}
-        loading={loading}
-        onBack={() => setCurrentView('landing')}
-        onResendEmail={handleResendEmail}
-      />
+      <>
+        <AuthPage 
+          mode={authMode}
+          onToggleMode={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
+          onAuth={handleAuth}
+          loading={loading}
+          onBack={() => setCurrentView('landing')}
+          onResendEmail={handleResendEmail}
+        />
+        {showResetModal && (
+          <ResetPasswordModal 
+            onClose={() => setShowResetModal(false)}
+            onSuccess={() => {
+              setShowResetModal(false);
+              // Rester sur la page auth pour que l'utilisateur puisse se connecter
+              // avec son nouveau mot de passe
+              console.log('✅ Reset password terminé, utilisateur peut maintenant se connecter');
+            }}
+          />
+        )}
+      </>
     );
   }
 
-  return <Dashboard user={user!} onLogout={handleLogout} />;
+  // Vérification de sécurité : s'assurer qu'on a un utilisateur
+  if (!user) {
+    console.error('❌ Tentative d\'accès au Dashboard sans utilisateur - redirection vers landing');
+    setCurrentView('landing');
+    return <LandingPage onGetStarted={() => setCurrentView('auth')} />;
+  }
+
+  return <Dashboard user={user} onLogout={handleLogout} />;
 };
 
 // Composant Landing Page
@@ -793,6 +871,23 @@ const AuthPage: React.FC<{
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
+  // Gérer les événements d'erreur de session pour le reset password
+  React.useEffect(() => {
+    const handleResetSessionError = (event: any) => {
+      console.log('🔥 Événement resetSessionError reçu:', event.detail);
+      setMessage({ 
+        type: 'error', 
+        text: event.detail 
+      });
+    };
+
+    window.addEventListener('resetSessionError', handleResetSessionError);
+    
+    return () => {
+      window.removeEventListener('resetSessionError', handleResetSessionError);
+    };
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSubmit();
@@ -837,7 +932,7 @@ const AuthPage: React.FC<{
     if (!email) {
       setMessage({ 
         type: 'error', 
-        text: 'Veuillez saisir votre adresse email d\'abord.' 
+        text: '📧 Veuillez saisir votre adresse email d\'abord pour recevoir le lien de réinitialisation.' 
       });
       return;
     }
@@ -845,14 +940,14 @@ const AuthPage: React.FC<{
     if (!supabase || !isSupabaseConfigured) {
       setMessage({ 
         type: 'error', 
-        text: 'Service de réinitialisation non configuré.' 
+        text: '⚙️ Service de réinitialisation non configuré. Contactez l\'administrateur.' 
       });
       return;
     }
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `${window.location.origin}?reset=true`
       });
 
       if (error) {
@@ -861,15 +956,15 @@ const AuthPage: React.FC<{
 
       setMessage({ 
         type: 'success', 
-        text: `Un lien de réinitialisation a été envoyé à ${email}. Vérifiez votre boîte email et vos spams.` 
+        text: `📧 Un lien de réinitialisation a été envoyé à ${email}. Vérifiez votre boîte email et vos spams. Cliquez sur le lien pour définir votre nouveau mot de passe.` 
       });
       setResetEmailSent(true);
-      setShowForgotPassword(false);
+      
     } catch (error: any) {
       console.error('Erreur reset password:', error);
       setMessage({ 
         type: 'error', 
-        text: 'Erreur lors de l\'envoi du lien. Réessayez dans quelques minutes.' 
+        text: '🌐 Erreur lors de l\'envoi du lien. Vérifiez votre connexion et réessayez dans quelques minutes.' 
       });
     }
   };
@@ -891,7 +986,7 @@ const AuthPage: React.FC<{
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4 sm:p-6">
+    <div data-auth-page className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md">
         <button 
           onClick={onBack}
@@ -5188,5 +5283,231 @@ function calculatePaymentDue(invoiceDate: Date, terms: string): string {
 
 
 
+
+// Composant Modal de réinitialisation du mot de passe
+const ResetPasswordModal: React.FC<{
+  onClose: () => void;
+  onSuccess: () => void;
+}> = ({ onClose, onSuccess }) => {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleSubmit = async () => {
+    // Validations côté client
+    if (!newPassword || !confirmPassword) {
+      setMessage({ type: 'error', text: '⚠️ Veuillez remplir tous les champs pour continuer.' });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setMessage({ type: 'error', text: '🔒 Les mots de passe ne correspondent pas. Vérifiez la saisie.' });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setMessage({ type: 'error', text: '📏 Le mot de passe doit contenir au moins 6 caractères pour votre sécurité.' });
+      return;
+    }
+
+    if (!supabase || !isSupabaseConfigured) {
+      setMessage({ type: 'error', text: '⚙️ Service d\'authentification non configuré. Contactez l\'administrateur.' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('🔄 Début de la modification du mot de passe...');
+
+      // Vérifier d'abord la session active
+      const { data: session, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('❌ Erreur session:', sessionError);
+        throw new Error('Session invalide. Veuillez recommencer le processus de réinitialisation.');
+      }
+
+      if (!session?.session) {
+        console.error('❌ Pas de session active');
+        throw new Error('Session expirée. Veuillez demander un nouveau lien de réinitialisation.');
+      }
+
+      console.log('✅ Session valide, mise à jour du mot de passe...');
+
+      // Mettre à jour le mot de passe
+      const { data, error } = await supabase.auth.updateUser({ 
+        password: newPassword 
+      });
+
+      if (error) {
+        console.error('❌ Erreur updateUser:', error);
+        throw error;
+      }
+
+      console.log('✅ Mot de passe mis à jour avec succès:', !!data.user);
+
+      // Déconnecter l'utilisateur pour qu'il se reconnecte avec le nouveau mot de passe
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+      localStorage.removeItem('demo-user');
+
+      setMessage({ type: 'success', text: '🎉 Mot de passe modifié avec succès ! Vous pouvez maintenant vous connecter...' });
+      
+      setTimeout(() => {
+        onSuccess();
+      }, 1500);
+
+    } catch (error: any) {
+      console.error('💥 Erreur complète update password:', error);
+      
+      let errorMessage = '❌ Erreur inconnue lors de la modification.';
+      
+      if (error.message) {
+        if (error.message.includes('session_not_found')) {
+          errorMessage = '🔐 Session expirée. Demandez un nouveau lien de réinitialisation par email.';
+        } else if (error.message.includes('invalid_credentials')) {
+          errorMessage = '🚫 Lien de réinitialisation invalide. Demandez un nouveau lien.';
+        } else if (error.message.includes('session')) {
+          errorMessage = '⏰ Session expirée. Cliquez sur le lien de réinitialisation depuis votre email.';
+        } else if (error.message.includes('password')) {
+          errorMessage = '🔒 Problème avec le mot de passe. Essayez avec un mot de passe différent.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = '🌐 Problème de connexion. Vérifiez votre internet et réessayez.';
+        } else {
+          errorMessage = `🚨 Erreur: ${error.message}`;
+        }
+      }
+      
+      setMessage({ type: 'error', text: errorMessage });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSubmit();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <X className="w-6 h-6" />
+        </button>
+
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-8 h-8 text-blue-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Nouveau mot de passe
+          </h2>
+          <p className="text-gray-600">
+            Choisissez un nouveau mot de passe sécurisé pour votre compte.
+          </p>
+        </div>
+
+        {message && (
+          <div className={`mb-6 p-4 rounded-xl ${
+            message.type === 'success' 
+              ? 'bg-green-50 border border-green-200' 
+              : 'bg-red-50 border border-red-200'
+          }`}>
+            <p className={`text-sm font-medium ${
+              message.type === 'success' ? 'text-green-700' : 'text-red-700'
+            }`}>
+              {message.text}
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nouveau mot de passe
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type={showPassword ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Nouveau mot de passe"
+                className="w-full pl-11 pr-11 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Confirmer le mot de passe
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Confirmer le mot de passe"
+                className="w-full pl-11 pr-11 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              >
+                {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <button
+              onClick={onClose}
+              className="flex-1 px-6 py-3 border border-gray-300 hover:border-gray-400 text-gray-700 font-semibold rounded-xl transition-all duration-200"
+              disabled={loading}
+            >
+              Annuler
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !newPassword || !confirmPassword}
+              className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center"
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Modification...
+                </>
+              ) : (
+                'Modifier le mot de passe'
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default InvoiceApp;
