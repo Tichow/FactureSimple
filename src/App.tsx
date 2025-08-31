@@ -790,6 +790,8 @@ const AuthPage: React.FC<{
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showResendButton, setShowResendButton] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -826,6 +828,48 @@ const AuthPage: React.FC<{
       setMessage({ 
         type: 'error', 
         text: 'Erreur lors du renvoi. Réessayez dans quelques minutes.' 
+      });
+    }
+  };
+
+  // Fonction pour réinitialiser le mot de passe
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setMessage({ 
+        type: 'error', 
+        text: 'Veuillez saisir votre adresse email d\'abord.' 
+      });
+      return;
+    }
+
+    if (!supabase || !isSupabaseConfigured) {
+      setMessage({ 
+        type: 'error', 
+        text: 'Service de réinitialisation non configuré.' 
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setMessage({ 
+        type: 'success', 
+        text: `Un lien de réinitialisation a été envoyé à ${email}. Vérifiez votre boîte email et vos spams.` 
+      });
+      setResetEmailSent(true);
+      setShowForgotPassword(false);
+    } catch (error: any) {
+      console.error('Erreur reset password:', error);
+      setMessage({ 
+        type: 'error', 
+        text: 'Erreur lors de l\'envoi du lien. Réessayez dans quelques minutes.' 
       });
     }
   };
@@ -966,6 +1010,20 @@ const AuthPage: React.FC<{
                     {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Lien mot de passe oublié (seulement en mode connexion) */}
+            {mode === 'signin' && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium underline transition-colors duration-200"
+                  disabled={loading}
+                >
+                  Mot de passe oublié ?
+                </button>
               </div>
             )}
 
@@ -2731,6 +2789,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
               <span className="hidden sm:inline">Télécharger la facture PDF</span>
               <span className="sm:hidden">Télécharger PDF</span>
             </button>
+            {/* Bouton email temporairement désactivé
             <button 
               onClick={() => setShowEmailModal(true)}
               className="flex-1 sm:flex-none flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-all duration-200"
@@ -2739,6 +2798,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
               <span className="hidden sm:inline">Envoyer par mail</span>
               <span className="sm:hidden">Envoyer</span>
             </button>
+            */}
             <button 
               onClick={() => setShowPreview(true)}
               className="flex-1 sm:flex-none px-6 py-3 border border-gray-300 hover:border-gray-400 text-gray-700 font-semibold rounded-xl transition-all duration-200"
@@ -2751,7 +2811,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         {/* Modal Aperçu */}
         {showPreview && <PreviewModal invoice={invoice} articles={articles} companyInfo={companyInfo} clientInfo={clientInfo} onClose={() => setShowPreview(false)} />}
 
-        {/* Modal Email */}
+        {/* Modal Email - temporairement désactivé
         {showEmailModal && <EmailModal 
           invoice={invoice} 
           articles={articles} 
@@ -2760,6 +2820,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
           onClose={() => setShowEmailModal(false)}
           onSend={sendInvoiceByEmail}
         />}
+        */}
 
         {/* Modal Historique */}
         {showHistory && <HistoryModal onClose={() => setShowHistory(false)} onLoadInvoice={loadInvoiceFromHistory} getHistory={getInvoiceHistory} />}

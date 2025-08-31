@@ -1,3 +1,12 @@
 {
-  "imports": {}
+  "tasks": {
+    "start": "deno run --allow-net --allow-env index.ts"
+  },
+  "imports": {
+    "smtp": "https://deno.land/x/denomailer@1.6.0/mod.ts"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"]
+  }
 }
