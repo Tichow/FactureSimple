@@ -499,6 +499,20 @@ const InvoiceApp: React.FC = () => {
     setLoading(true);
     setMessage(null);
     
+    // Validation des entrées
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setMessage({ type: 'error', text: 'Veuillez saisir une adresse email valide.' });
+      setLoading(false);
+      return;
+    }
+    
+    if (password.length < 6) {
+      setMessage({ type: 'error', text: 'Le mot de passe doit contenir au moins 6 caractères.' });
+      setLoading(false);
+      return;
+    }
+    
     // Vérifier si l'email est autorisé
     const allowedEmails = ['salome.marla@yahoo.com', 'matteo.quintaneiro@gmail.com', 'aquaisdead@gmail.com'];
     if (!allowedEmails.includes(email.toLowerCase())) {
@@ -533,8 +547,8 @@ const InvoiceApp: React.FC = () => {
           });
           
           if (error) {
-            // Gérer les erreurs spécifiques
-            if (error.message.includes('User already registered')) {
+            console.error('Erreur inscription:', error);
+            if (error.message.includes('User already registered') || error.message.includes('already been registered')) {
               setMessage({ 
                 type: 'error', 
                 text: `Un compte existe déjà pour ${email}. Utilisez "Se connecter" ci-dessous pour accéder à votre compte.` 
@@ -548,16 +562,39 @@ const InvoiceApp: React.FC = () => {
                   });
                 }
               }, 3000);
+            } else if (error.message.includes('Password should be at least')) {
+              setMessage({ 
+                type: 'error', 
+                text: 'Le mot de passe doit contenir au moins 6 caractères.' 
+              });
+            } else if (error.message.includes('Invalid email')) {
+              setMessage({ 
+                type: 'error', 
+                text: 'Format d\'email invalide. Veuillez vérifier votre adresse.' 
+              });
+            } else if (error.message.includes('rate limit') || error.message.includes('Too many')) {
+              setMessage({ 
+                type: 'error', 
+                text: 'Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.' 
+              });
+            } else if (error.message.includes('weak password')) {
+              setMessage({ 
+                type: 'error', 
+                text: 'Mot de passe trop faible. Utilisez au moins 6 caractères avec lettres et chiffres.' 
+              });
             } else {
-              setMessage({ type: 'error', text: error.message });
+              setMessage({ 
+                type: 'error', 
+                text: `Erreur d'inscription: ${error.message}` 
+              });
             }
             return;
           }
           
           if (data.user && data.user.email) {
             setMessage({ 
-              type: 'success', 
-              text: 'Un lien de confirmation a été envoyé à votre adresse email. Veuillez vérifier votre boîte de réception pour activer votre compte.' 
+              type: 'info', 
+              text: `Un lien de confirmation a été envoyé à ${email}. Veuillez cliquer sur le lien pour activer votre compte. N'oubliez pas de vérifier vos spams !` 
             });
           }
         } else {
@@ -567,18 +604,37 @@ const InvoiceApp: React.FC = () => {
           });
           
           if (error) {
+            console.error('Erreur connexion:', error);
             if (error.message.includes('Invalid login credentials')) {
               setMessage({ 
                 type: 'error', 
-                text: `Aucun compte trouvé pour ${email}` 
+                text: `Email ou mot de passe incorrect pour ${email}. Vérifiez vos identifiants ou créez un nouveau compte.` 
               });
             } else if (error.message.includes('Email not confirmed')) {
               setMessage({ 
                 type: 'error', 
-                text: 'Votre email n\'est pas encore confirmé. Vérifiez votre boîte mail et cliquez sur le lien de confirmation.' 
+                text: 'Votre email n\'est pas encore confirmé. Vérifiez votre boîte mail et vos spams, puis cliquez sur le lien de confirmation.' 
+              });
+            } else if (error.message.includes('Too many requests')) {
+              setMessage({ 
+                type: 'error', 
+                text: 'Trop de tentatives de connexion. Veuillez patienter quelques minutes avant de réessayer.' 
+              });
+            } else if (error.message.includes('User not found')) {
+              setMessage({ 
+                type: 'error', 
+                text: `Aucun compte trouvé pour ${email}. Vérifiez votre adresse email ou créez un nouveau compte.` 
+              });
+            } else if (error.message.includes('network')) {
+              setMessage({ 
+                type: 'error', 
+                text: 'Problème de connexion réseau. Vérifiez votre connexion internet et réessayez.' 
               });
             } else {
-              setMessage({ type: 'error', text: error.message });
+              setMessage({ 
+                type: 'error', 
+                text: `Erreur de connexion: ${error.message}` 
+              });
             }
             return;
           }
@@ -716,10 +772,82 @@ const AuthPage: React.FC<{
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [showResendButton, setShowResendButton] = useState(false);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSubmit();
+    }
+  };
+
+  // Gérer le cooldown pour le renvoi d'email
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (resendCooldown > 0) {
+      interval = setInterval(() => {
+        setResendCooldown(prev => {
+          if (prev <= 1) {
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [resendCooldown]);
+
+  // Détecter si l'utilisateur a besoin de confirmer son email
+  useEffect(() => {
+    if (message?.text.includes('Veuillez confirmer votre email') || 
+        message?.text.includes('confirmer votre adresse email')) {
+      const timer = setTimeout(() => {
+        setShowResendButton(true);
+      }, 5000); // Attendre 5 secondes avant de montrer le bouton
+      return () => clearTimeout(timer);
+    } else {
+      setShowResendButton(false);
+    }
+  }, [message]);
+
+  // Fonction pour renvoyer l'email de confirmation
+  const handleResendEmail = async () => {
+    if (!email || resendCooldown > 0 || isResendingEmail || !supabase) return;
+    
+    setIsResendingEmail(true);
+    setMessage({ type: 'info', text: 'Envoi du nouveau lien de confirmation...' });
+    
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      });
+      
+      if (error) {
+        console.error('Erreur renvoi email:', error);
+        setMessage({ 
+          type: 'error', 
+          text: 'Erreur lors du renvoi de l\'email. Veuillez réessayer plus tard.' 
+        });
+      } else {
+        setMessage({ 
+          type: 'success', 
+          text: `Nouveau lien de confirmation envoyé à ${email}. Vérifiez votre boîte mail et vos spams.` 
+        });
+        setResendCooldown(60); // Cooldown de 60 secondes
+        setShowResendButton(false);
+      }
+    } catch (error) {
+      console.error('Erreur inattendue:', error);
+      setMessage({ 
+        type: 'error', 
+        text: 'Une erreur inattendue s\'est produite. Veuillez réessayer.' 
+      });
+    } finally {
+      setIsResendingEmail(false);
     }
   };
 
@@ -751,9 +879,6 @@ const AuthPage: React.FC<{
         
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <span className="text-white font-bold">F</span>
-            </div>
             <h2 className="text-2xl font-bold text-gray-900">
               {mode === 'signin' ? 'Connexion' : 'Créer un compte'}
             </h2>
@@ -775,6 +900,8 @@ const AuthPage: React.FC<{
                 : 'bg-blue-50 border-blue-200 text-blue-800'
             }`}>
               <p className="text-sm font-medium">{message.text}</p>
+              
+              {/* Bouton pour basculer vers connexion si email déjà utilisé */}
               {message.type === 'error' && message.text.includes('déjà associé') && (
                 <button
                   onClick={onToggleMode}
@@ -782,6 +909,31 @@ const AuthPage: React.FC<{
                 >
                   Se connecter à la place
                 </button>
+              )}
+              
+              {/* Bouton de renvoi d'email de confirmation */}
+              {(showResendButton || (message.text.includes('confirmer') && email)) && (
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <p className="text-xs text-gray-600 mb-2">
+                    Vous n'avez pas reçu l'email ? Vérifiez vos spams ou :
+                  </p>
+                  <button
+                    onClick={handleResendEmail}
+                    disabled={resendCooldown > 0 || isResendingEmail || !email}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-all duration-200 ${
+                      resendCooldown > 0 || isResendingEmail || !email
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-800'
+                    }`}
+                  >
+                    {isResendingEmail 
+                      ? 'Envoi en cours...' 
+                      : resendCooldown > 0 
+                        ? `Renvoyer (${resendCooldown}s)`
+                        : 'Renvoyer l\'email'
+                    }
+                  </button>
+                </div>
               )}
             </div>
           )}
