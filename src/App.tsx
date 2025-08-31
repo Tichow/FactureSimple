@@ -3578,10 +3578,18 @@ const sendInvoiceByEmail = async (
     const pdfBase64 = await blobToBase64(pdfBlob);
     
     // Préparer les données pour l'envoi
+    const senderName = companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`;
+    
+    console.log('🚀 Préparation envoi:', {
+      senderName: senderName,
+      replyTo: companyInfo.email,
+      to: emailData.to
+    });
+    
     const emailPayload = {
       to: emailData.to,
-      from_name: companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`,
-      from_email: companyInfo.email,
+      from_name: senderName,
+      from_email: companyInfo.email, // Utilisé pour Reply-To
       subject: emailData.subject,
       message: emailData.message,
       invoice_number: invoice.invoiceNumber,
@@ -3592,48 +3600,55 @@ const sendInvoiceByEmail = async (
     };
 
     // Option 1: Utiliser Supabase Edge Functions si configuré
+    console.log('🔧 Configuration Supabase:', {
+      supabaseExists: !!supabase,
+      isConfigured: isSupabaseConfigured
+    });
+
     if (supabase && isSupabaseConfigured) {
       try {
+        console.log('📤 Envoi via Supabase Edge Function...');
+        console.log('📦 Payload envoyé:', emailPayload);
+        
         const { data, error } = await supabase.functions.invoke('send-invoice-email', {
           body: emailPayload
         });
 
-        if (error) throw error;
+        console.log('📥 Réponse Supabase:', { data, error });
+
+        if (error) {
+          console.error('❌ Erreur Supabase:', error);
+          throw error;
+        }
         
-        return { success: true, message: 'Email envoyé avec succès via Supabase!' };
-      } catch (supabaseError) {
-        console.log('Supabase Email non disponible, tentative avec EmailJS...');
+        if (data && data.success) {
+          console.log('✅ Email envoyé avec succès!');
+          return { success: true, message: data.message || 'Email envoyé avec succès via Supabase!' };
+        } else {
+          console.error('❌ Échec de l\'envoi:', data);
+          throw new Error(data?.error || 'Erreur inconnue');
+        }
+      } catch (supabaseError: any) {
+        console.error('💥 Erreur Supabase complète:', supabaseError);
+        const errorMessage = supabaseError?.message || supabaseError?.details || String(supabaseError);
+        return { success: false, message: `Erreur: ${errorMessage}` };
       }
     }
 
-    // Option 2: Utiliser EmailJS comme fallback sécurisé
-    // EmailJS permet d'envoyer des emails directement depuis le frontend de manière sécurisée
-    if (typeof window !== 'undefined' && (window as any).emailjs) {
-      const emailJSParams = {
-        to_email: emailData.to,
-        from_name: emailPayload.from_name,
-        subject: emailData.subject,
-        message: emailData.message,
-        invoice_number: invoice.invoiceNumber,
-        client_name: emailPayload.client_name,
-        total_amount: emailPayload.total_amount,
-        attachment_name: emailPayload.pdf_filename,
-        attachment_content: emailPayload.pdf_content
-      };
-
-      // Configuration à faire avec vos propres clés EmailJS
-      // await (window as any).emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', emailJSParams, 'YOUR_PUBLIC_KEY');
-      
-      // Pour l'instant, simulation avec succès pour démonstration
-      console.log('Email préparé pour envoi:', emailJSParams);
-      return { success: true, message: 'Email envoyé avec succès! (Mode simulation - configurez EmailJS pour un envoi réel)' };
-    }
-
-    // Option 3: Afficher un message informatif si aucun service n'est configuré
-    console.log('Données d\'email préparées:', emailPayload);
+    // Si on arrive ici, c'est que Supabase n'est pas configuré
+    console.log('⚠️ Supabase non configuré, utilisation du mode simulation');
+    
+    // Mode simulation pour development
+    console.log('📧 Email simulé - Données préparées:', {
+      to: emailPayload.to,
+      from: emailPayload.from_name + ' <' + emailPayload.from_email + '>',
+      subject: emailPayload.subject,
+      pdfSize: emailPayload.pdf_content.length + ' caractères'
+    });
+    
     return { 
       success: true, 
-      message: 'Email préparé avec succès! Pour un envoi réel, configurez Supabase Edge Functions ou EmailJS.' 
+      message: 'Email simulé avec succès! Configurez Supabase Edge Functions pour un envoi réel.' 
     };
 
   } catch (error) {
@@ -3999,6 +4014,27 @@ ${companyInfo.phone}`);
                 disabled={sending}
                 required
               />
+            </div>
+
+            {/* Information sur l'expéditeur */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-start space-x-3">
+                <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Mail className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-blue-900 mb-1">
+                    Configuration de l'envoi
+                  </h4>
+                  <div className="text-xs text-blue-700 space-y-1">
+                    <p><strong>Expéditeur :</strong> {companyInfo.companyName || companyInfo.firstName + ' ' + companyInfo.lastName} &lt;service sécurisé&gt;</p>
+                    <p><strong>Réponses vers :</strong> {companyInfo.email}</p>
+                    <p className="text-blue-600 font-medium mt-2">
+                      ℹ️ L'email sera envoyé depuis notre service sécurisé, mais les réponses arriveront directement dans votre boîte mail.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
