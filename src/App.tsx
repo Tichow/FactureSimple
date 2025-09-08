@@ -2160,8 +2160,9 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         // Logo et informations émetteur (pas d'en-tête en haut)
         let yPos = 25;
         
-        // Logo - Chargement et optimisation du logo (d'abord depuis Supabase, puis fallback local)
+        // Vérifier si on a un logo utilisateur défini
         let logoAdded = false;
+        let textXPosition = margin; // Position par défaut sans logo
         
         // Essayer d'abord d'utiliser le logo uploadé par l'utilisateur
         if (companyInfo.logoUrl) {
@@ -2178,52 +2179,26 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
             const logoBase64 = await optimizeImageForPDF(logoImg);
             doc.addImage(logoBase64, 'PNG', margin, yPos, 20, 20);
             logoAdded = true;
+            textXPosition = margin + 25; // Décaler le texte quand il y a un logo
           } catch (error) {
-            console.log('Erreur avec le logo utilisateur, tentative logo par défaut');
+            console.log('Erreur avec le logo utilisateur, pas de logo affiché');
           }
         }
         
-        // Fallback : logo par défaut si pas de logo utilisateur ou erreur
-        if (!logoAdded) {
-          try {
-            const logoImg = new Image();
-            logoImg.src = '/logo.png'; // Pas de crossOrigin pour les ressources locales
-            
-            await new Promise((resolve, reject) => {
-              logoImg.onload = resolve;
-              logoImg.onerror = reject;
-            });
-            
-            const logoBase64 = await optimizeImageForPDF(logoImg);
-            doc.addImage(logoBase64, 'PNG', margin, yPos, 20, 20); // PNG pour préserver la transparence du logo local
-            logoAdded = true;
-          } catch (error) {
-            console.log('Erreur logo par défaut, utilisation du placeholder');
-          }
-        }
+        // Ne pas utiliser de logo par défaut si l'utilisateur n'en a pas défini
+        // Seul le logo utilisateur sera affiché
         
-        // Si aucun logo n'a pu être chargé, utiliser le placeholder
-        if (!logoAdded) {
-          console.log('Aucun logo disponible, utilisation du placeholder');
-          // Fallback: Logo placeholder
-          doc.setFillColor(...darkGray);
-          doc.circle(margin + 8, yPos + 8, 8, 'F');
-          doc.setFontSize(12);
-          doc.setTextColor(255, 255, 255);
-          doc.text('🐻', margin + 8, yPos + 11, { align: 'center' });
-        }
-        
-        // Informations émetteur à côté du logo (ajusté pour logo 20x20)
+        // Informations émetteur (positionnées selon la présence du logo)
         doc.setTextColor(...black);
         doc.setFontSize(14);
         doc.setFont(undefined, 'bold');
-        doc.text(companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`, margin + 25, yPos + 4);
+        doc.text(companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`, textXPosition, yPos + 4);
         
         doc.setFontSize(10);
         doc.setFont(undefined, 'normal');
-        doc.text(companyInfo.address, margin + 25, yPos + 10);
-        doc.text(`${companyInfo.phone} | ${companyInfo.email}`, margin + 25, yPos + 15);
-        doc.text(`SIRET: ${companyInfo.siret}`, margin + 25, yPos + 20);
+        doc.text(companyInfo.address, textXPosition, yPos + 10);
+        doc.text(`${companyInfo.phone} | ${companyInfo.email}`, textXPosition, yPos + 15);
+        doc.text(`SIRET: ${companyInfo.siret}`, textXPosition, yPos + 20);
         
         // Numéro de facture en haut à droite
         doc.setFontSize(14);
@@ -2233,7 +2208,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         yPos += 35;
         
         // Titre "Facture" (police réduite)
-        doc.setFontSize(28);
+        doc.setFontSize(20);
         doc.setFont(undefined, 'bold');
         doc.setTextColor(...black);
         doc.text('Facture', margin, yPos);
@@ -2241,27 +2216,29 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         yPos += 15;
         
         // Section Adresse de facturation (remontée)
-        doc.setFontSize(12);
+        doc.setFontSize(14);
         doc.setFont(undefined, 'bold');
         doc.setTextColor(...blue);
         doc.text('Adresse de facturation', margin, yPos);
         
-        yPos += 8;
+        yPos += 7;
         
         doc.setTextColor(...black);
         doc.setFont(undefined, 'bold');
+        doc.setFontSize(10);
         doc.text(`${clientInfo.firstName} ${clientInfo.lastName}`, margin, yPos);
-        yPos += 6;
+        yPos += 5;
         
         doc.setFont(undefined, 'normal');
+        doc.setFontSize(11);
         doc.text(`À l'attention de ${clientInfo.firstName} ${clientInfo.lastName}` , margin, yPos);
-        yPos += 6;
+        yPos += 5;
         doc.text(clientInfo.address, margin, yPos);
-        yPos += 6;
+        yPos += 5;
         doc.text(`${clientInfo.postalCode} ${clientInfo.city}`, margin, yPos);
-        yPos += 6;
+        yPos += 5;
         doc.text(`Tél: ${formatPhoneNumber(clientInfo.phone)}`, margin, yPos);
-        yPos += 6;
+        yPos += 5;
         doc.text(`SIRET: ${formatSiret(clientInfo.siret)}`, margin, yPos);
         
         yPos += 15;
@@ -2273,7 +2250,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         const col4 = margin + 132;
         
         // En-têtes
-        doc.setFontSize(10);
+        doc.setFontSize(11);
         doc.setFont(undefined, 'bold');
         doc.setTextColor(...lightGray);
         
@@ -2285,7 +2262,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         yPos += 7;
         
         // Valeurs
-        doc.setFontSize(10);
+        doc.setFontSize(11);
         doc.setTextColor(...black);
         doc.setFont(undefined, 'normal');
         doc.text(invoice.invoiceDate, col1, yPos);
@@ -2293,7 +2270,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         doc.text(invoice.paymentTerms, col3, yPos);
         doc.text(invoice.paymentDue, col4, yPos);
         
-        yPos += 20;
+        yPos += 15;
         
         // Fonction pour dessiner l'en-tête du tableau
         const drawTableHeader = (startY: number) => {
@@ -2571,19 +2548,31 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         
         yPos += 20;
         
+        // Calcul des positions fixes pour les éléments en bas de page
+        const pageHeight = 297; // Hauteur A4 en mm
+        const bankInfoHeight = 35; // Hauteur nécessaire pour les infos bancaires
+        const legalTextHeight = 15; // Hauteur pour les mentions légales
+        const footerHeight = 10; // Espace pour le pied de page
+        
+        // Position fixe pour les infos bancaires (en bas de page mais pas tout en bas)
+        const bankInfoYPos = pageHeight - bankInfoHeight - legalTextHeight - footerHeight;
+        
         // Vérifier si on a besoin d'une nouvelle page pour les infos de paiement
-        if (needsNewPageForPayment) {
+        if (needsNewPageForPayment || yPos > bankInfoYPos - 20) {
           doc.addPage();
-          yPos = 50;
           drawPageFooter(totalPages, totalPages);
         }
+        
+        // Positionner les informations bancaires en bas de page (position fixe)
+        let bankYPos = bankInfoYPos;
         
         // Section paiement bancaire
         doc.setFontSize(11);
         doc.setFont(undefined, 'bold');
-        doc.text('Paiement souhaité par virement bancaire', margin, yPos);
+        doc.setTextColor(...black);
+        doc.text('Paiement souhaité par virement bancaire', margin, bankYPos);
         
-        yPos += 12;
+        bankYPos += 12;
         
         // Informations bancaires en deux colonnes
         doc.setFontSize(9);
@@ -2594,34 +2583,35 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         const bankCol2 = margin + (contentWidth / 2);
         
         // Colonne 1
-        doc.text('Nom associé au compte', bankCol1, yPos);
+        doc.text('Nom associé au compte', bankCol1, bankYPos);
         doc.setFont(undefined, 'normal');
         doc.setTextColor(...black);
-        doc.text(companyInfo.accountName || '', bankCol1, yPos + 5);
+        doc.text(companyInfo.accountName || '', bankCol1, bankYPos + 5);
         
         doc.setFont(undefined, 'bold');
         doc.setTextColor(...darkGray);
-        doc.text('BIC', bankCol1, yPos + 12);
+        doc.text('BIC', bankCol1, bankYPos + 12);
         doc.setFont(undefined, 'normal');
         doc.setTextColor(...black);
-        doc.text(companyInfo.bic || '', bankCol1, yPos + 17);
+        doc.text(companyInfo.bic || '', bankCol1, bankYPos + 17);
         
         // Colonne 2
         doc.setFont(undefined, 'bold');
         doc.setTextColor(...darkGray);
-        doc.text('IBAN', bankCol2, yPos);
+        doc.text('IBAN', bankCol2, bankYPos);
         doc.setFont(undefined, 'normal');
         doc.setTextColor(...black);
-        doc.text(formatIban(companyInfo.iban) || '', bankCol2, yPos + 5);
+        doc.text(formatIban(companyInfo.iban) || '', bankCol2, bankYPos + 5);
         
         doc.setFont(undefined, 'bold');
         doc.setTextColor(...darkGray);
-        doc.text('Nom de la banque', bankCol2, yPos + 12);
+        doc.text('Nom de la banque', bankCol2, bankYPos + 12);
         doc.setFont(undefined, 'normal');
         doc.setTextColor(...black);
-        doc.text(companyInfo.bankName || '', bankCol2, yPos + 17);
+        doc.text(companyInfo.bankName || '', bankCol2, bankYPos + 17);
         
-        yPos += 25;
+        // Positionner les mentions légales tout en bas de page (position fixe)
+        const legalYPos = pageHeight - legalTextHeight - footerHeight;
         
         // Mentions légales
         doc.setFontSize(7);
@@ -2630,9 +2620,9 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         const legalText2 = 'une indemnité calculée sur la base de trois fois le taux de l\'intérêt légal en vigueur ainsi qu\'une indemnité forfaitaire pour frais';
         const legalText3 = 'de recouvrement de 40 euros. - TVA non applicable, art. 293B du CGI.';
         
-        doc.text(legalText1, margin, yPos);
-        doc.text(legalText2, margin, yPos + 4);
-        doc.text(legalText3, margin, yPos + 8);
+        doc.text(legalText1, margin, legalYPos);
+        doc.text(legalText2, margin, legalYPos + 4);
+        doc.text(legalText3, margin, legalYPos + 8);
         
         // Sauvegarder le PDF
         doc.save(`facture-${invoice.invoiceNumber}.pdf`);
@@ -2961,7 +2951,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
-              Produits/Services/Services
+              Produits/Services
             </h3>
             {invoiceStatus === 'draft' && (
               <button
@@ -3015,9 +3005,10 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         <textarea
           value={article.description.join('\n')}
           onChange={(e) => updateArticle(article.id, { description: e.target.value.split('\n').filter(line => line.trim() !== '') })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y min-h-[42px]"
           placeholder="Ex: Création d'un site vitrine responsive avec 5 pages"
-          rows={2}
+          rows={1}
+          style={{ minHeight: '42px' }}
         />
       </div>
     </div>
@@ -3967,8 +3958,10 @@ const generatePDFBlob = async (
       // Logo et informations émetteur
       let yPos = 25;
       
-      // Logo - tentative de chargement ou fallback
+      // Vérifier si on a un logo utilisateur défini
       let logoAdded = false;
+      let textXPosition = margin; // Position par défaut sans logo
+      
       if (companyInfo.logoUrl) {
         try {
           const logoImg = new Image();
@@ -3981,44 +3974,25 @@ const generatePDFBlob = async (
           const logoBase64 = await optimizeImageForPDF(logoImg);
           doc.addImage(logoBase64, 'PNG', margin, yPos, 20, 20);
           logoAdded = true;
+          textXPosition = margin + 25; // Décaler le texte quand il y a un logo
         } catch (error) {
           console.log('Logo utilisateur non disponible pour l\'email');
         }
       }
 
-      // Logo par défaut ou placeholder
-      if (!logoAdded) {
-        try {
-          const logoImg = new Image();
-          logoImg.src = '/logo.png';
-          await new Promise((resolve, reject) => {
-            logoImg.onload = resolve;
-            logoImg.onerror = reject;
-          });
-          const logoBase64 = await optimizeImageForPDF(logoImg);
-          doc.addImage(logoBase64, 'PNG', margin, yPos, 20, 20);
-          logoAdded = true;
-        } catch (error) {
-          // Placeholder si aucun logo disponible
-          doc.setFillColor(...darkGray);
-          doc.circle(margin + 8, yPos + 8, 8, 'F');
-          doc.setFontSize(12);
-          doc.setTextColor(255, 255, 255);
-          doc.text('🐻', margin + 8, yPos + 11, { align: 'center' });
-        }
-      }
+      // Ne pas utiliser de logo par défaut si l'utilisateur n'en a pas défini
 
-      // Informations émetteur
+      // Informations émetteur (positionnées selon la présence du logo)
       doc.setTextColor(...black);
       doc.setFontSize(14);
       doc.setFont(undefined, 'bold');
-      doc.text(companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`, margin + 25, yPos + 4);
+      doc.text(companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`, textXPosition, yPos + 4);
       
       doc.setFontSize(10);
       doc.setFont(undefined, 'normal');
-      doc.text(companyInfo.address, margin + 25, yPos + 10);
-      doc.text(`${companyInfo.phone} | ${companyInfo.email}`, margin + 25, yPos + 15);
-      doc.text(`SIRET: ${companyInfo.siret}`, margin + 25, yPos + 20);
+      doc.text(companyInfo.address, textXPosition, yPos + 10);
+      doc.text(`${companyInfo.phone} | ${companyInfo.email}`, textXPosition, yPos + 15);
+      doc.text(`SIRET: ${companyInfo.siret}`, textXPosition, yPos + 20);
       
       // Numéro de facture
       doc.setFontSize(14);
@@ -4035,25 +4009,27 @@ const generatePDFBlob = async (
       yPos += 25;
 
       // Informations client
-      doc.setFontSize(12);
+      doc.setFontSize(14);
       doc.setFont(undefined, 'bold');
       doc.setTextColor(...blue);
       doc.text('Adresse de facturation', margin, yPos);
-      yPos += 8;
+      yPos += 7;
 
       doc.setFontSize(10);
-      doc.setFont(undefined, 'normal');
+      doc.setFont(undefined, 'bold');
       doc.setTextColor(...black);
       doc.text(`${clientInfo.firstName} ${clientInfo.lastName}`, margin, yPos);
-      yPos += 6;
+      yPos += 5;
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(11);
       doc.text(`À l'attention de ${clientInfo.firstName} ${clientInfo.lastName}`, margin, yPos);
-      yPos += 6;
+      yPos += 5;
       doc.text(clientInfo.address, margin, yPos);
-      yPos += 6;
+      yPos += 5;
       doc.text(`${clientInfo.postalCode} ${clientInfo.city}`, margin, yPos);
-      yPos += 6;
+      yPos += 5;
       doc.text(`Tél: ${clientInfo.phone?.replace(/(\d{2})(?=\d)/g, '$1 ')}`, margin, yPos);
-      yPos += 6;
+      yPos += 5;
       doc.text(`SIRET: ${clientInfo.siret?.replace(/(\d{3})(\d{3})(\d{3})(\d{5})/, '$1 $2 $3 $4')}`, margin, yPos);
       yPos += 12;
 
@@ -4334,6 +4310,12 @@ const PreviewModal: React.FC<{
   clientInfo: ClientInfo;
   onClose: () => void; 
 }> = ({ invoice, articles, companyInfo, clientInfo, onClose }) => {
+  // Fonction locale pour formater l'IBAN
+  const formatIban = (iban: string) => {
+    const chars = iban.replace(/\s/g, '').toUpperCase();
+    return chars.replace(/(.{4})/g, '$1 ').trim();
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -4352,10 +4334,12 @@ const PreviewModal: React.FC<{
         <div className="p-8 bg-white" style={{ fontFamily: 'Arial, sans-serif', fontSize: '10px', lineHeight: '1.4' }}>
           <div className="flex justify-between items-start mb-8">
             {/* Logo et informations émetteur */}
-            <div className="flex items-start space-x-4">
-              <div className="flex items-center justify-center" style={{ width: '56px', height: '56px' }}>
-                <img src="/logo.png" alt="Logo" style={{ width: '56px', height: '56px', objectFit: 'contain' }} />
-              </div>
+            <div className={`flex items-start ${companyInfo.logoUrl ? 'space-x-4' : ''}`}>
+              {companyInfo.logoUrl && (
+                <div className="flex items-center justify-center" style={{ width: '56px', height: '56px' }}>
+                  <img src={companyInfo.logoUrl} alt="Logo" style={{ width: '56px', height: '56px', objectFit: 'contain' }} />
+                </div>
+              )}
               <div>
                 <h3 className="font-bold text-gray-900" style={{ fontSize: '14px', lineHeight: '1.2', marginBottom: '6px' }}>{companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`}</h3>
                 <p className="text-gray-600" style={{ fontSize: '10px', lineHeight: '1.4', marginBottom: '2px' }}>{companyInfo.address}</p>
@@ -4375,35 +4359,35 @@ const PreviewModal: React.FC<{
 
           {/* Informations client - synchronisé avec PDF */}
           <div className="mb-8">
-            <h3 className="font-bold text-blue-600" style={{ fontSize: '12px', marginBottom: '8px' }}>Adresse de facturation</h3>
-            <div className="text-gray-900" style={{ lineHeight: '1.6' }}>
-              <p className="font-bold" style={{ fontSize: '10px', marginBottom: '6px' }}>{clientInfo.firstName} {clientInfo.lastName}</p>
-              <p style={{ fontSize: '10px', marginBottom: '6px' }}>{`À l'attention de ${clientInfo.firstName} ${clientInfo.lastName}`}</p>
-              <p style={{ fontSize: '10px', marginBottom: '6px' }}>{clientInfo.address}</p>
-              <p style={{ fontSize: '10px', marginBottom: '6px' }}>{clientInfo.postalCode} {clientInfo.city}</p>
-              <p style={{ fontSize: '10px', marginBottom: '6px' }}>Tél: {clientInfo.phone?.replace(/(\d{2})(?=\d)/g, '$1 ')}</p>
-              <p style={{ fontSize: '10px' }}>SIRET: {clientInfo.siret?.replace(/(\d{3})(\d{3})(\d{3})(\d{5})/, '$1 $2 $3 $4')}</p>
+            <h3 className="font-bold text-blue-600" style={{ fontSize: '14px', marginBottom: '7px' }}>Adresse de facturation</h3>
+            <div className="text-gray-900" style={{ lineHeight: '1.4' }}>
+              <p className="font-bold" style={{ fontSize: '10px', marginBottom: '5px' }}>{clientInfo.firstName} {clientInfo.lastName}</p>
+              <p style={{ fontSize: '11px', marginBottom: '5px' }}>{`À l'attention de ${clientInfo.firstName} ${clientInfo.lastName}`}</p>
+              <p style={{ fontSize: '11px', marginBottom: '5px' }}>{clientInfo.address}</p>
+              <p style={{ fontSize: '11px', marginBottom: '5px' }}>{clientInfo.postalCode} {clientInfo.city}</p>
+              <p style={{ fontSize: '11px', marginBottom: '5px' }}>Tél: {clientInfo.phone?.replace(/(\d{2})(?=\d)/g, '$1 ')}</p>
+              <p style={{ fontSize: '11px' }}>SIRET: {clientInfo.siret?.replace(/(\d{3})(\d{3})(\d{3})(\d{5})/, '$1 $2 $3 $4')}</p>
             </div>
           </div>
 
           {/* Dates et conditions - synchronisé avec PDF */}
-          <div className="mb-8" style={{ fontSize: '10px', lineHeight: '14px' }}>
+          <div style={{ fontSize: '11px', lineHeight: '14px', marginBottom: '15px' }}>
             <div className="flex mb-2">
               <div style={{ width: '75px' }}> {/* 20mm */}
-                <p className="font-bold text-gray-500" style={{ fontSize: '10px', marginBottom: '4px' }}>Date de facture</p>
-                <p className="text-gray-900" style={{ fontSize: '10px' }}>{invoice.invoiceDate}</p>
+                <p className="font-bold text-gray-500" style={{ fontSize: '11px', marginBottom: '4px' }}>Date de facture</p>
+                <p className="text-gray-900" style={{ fontSize: '11px' }}>{invoice.invoiceDate}</p>
               </div>
               <div style={{ width: '95px' }}> {/* 55mm */}
-                <p className="font-bold text-gray-500" style={{ fontSize: '10px', marginBottom: '4px' }}>Date de livraison</p>
-                <p className="text-gray-900" style={{ fontSize: '10px' }}>{invoice.deliveryDate}</p>
+                <p className="font-bold text-gray-500" style={{ fontSize: '11px', marginBottom: '4px' }}>Date de livraison</p>
+                <p className="text-gray-900" style={{ fontSize: '11px' }}>{invoice.deliveryDate}</p>
               </div>
               <div style={{ width: '100px' }}> {/* 90mm */}
-                <p className="font-bold text-gray-500" style={{ fontSize: '10px', marginBottom: '4px' }}>Conditions de règlement</p>
-                <p className="text-gray-900" style={{ fontSize: '10px' }}>{invoice.paymentTerms}</p>
+                <p className="font-bold text-gray-500" style={{ fontSize: '11px', marginBottom: '4px' }}>Conditions de règlement</p>
+                <p className="text-gray-900" style={{ fontSize: '11px' }}>{invoice.paymentTerms}</p>
               </div>
               <div style={{ width: '100px' }}> {/* 125mm */}
-                <p className="font-bold text-gray-500" style={{ fontSize: '10px', marginBottom: '4px' }}>Échéance de paiement</p>
-                <p className="text-gray-900" style={{ fontSize: '10px' }}>{invoice.paymentDue}</p>
+                <p className="font-bold text-gray-500" style={{ fontSize: '11px', marginBottom: '4px' }}>Échéance de paiement</p>
+                <p className="text-gray-900" style={{ fontSize: '11px' }}>{invoice.paymentDue}</p>
               </div>
             </div>
           </div>
@@ -4470,7 +4454,7 @@ const PreviewModal: React.FC<{
               </div>
               <div style={{ width: '200px' }}>
                 <p className="font-bold text-gray-600" style={{ fontSize: '9px', marginBottom: '3px' }}>IBAN</p>
-                <p className="text-gray-900" style={{ fontSize: '9px', marginBottom: '8px' }}>{companyInfo.iban?.replace(/(.{4})/g, '$1 ').trim()}</p>
+                <p className="text-gray-900" style={{ fontSize: '9px', marginBottom: '8px' }}>{formatIban(companyInfo.iban || '')}</p>
                 <p className="font-bold text-gray-600" style={{ fontSize: '9px', marginBottom: '3px' }}>Nom de la banque</p>
                 <p className="text-gray-900" style={{ fontSize: '9px' }}>{companyInfo.bankName}</p>
               </div>
@@ -5043,7 +5027,7 @@ const SettingsModal: React.FC<{
                     value={companyInfo.iban}
                     onChange={(e) => setCompanyInfo({ ...companyInfo, iban: formatIban(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="FR14 2004 1010 0505 0001 3M02 606"
+                    placeholder="FR12 3456 7890 1234 5678 9012 345"
                   />
                 </div>
                 <div>
@@ -5053,7 +5037,7 @@ const SettingsModal: React.FC<{
                     value={companyInfo.bankName}
                     onChange={(e) => setCompanyInfo({ ...companyInfo, bankName: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="LCL"
+                    placeholder="BANQUE"
                   />
                 </div>
               </div>
@@ -5313,9 +5297,10 @@ const SettingsModal: React.FC<{
                           <textarea
                             value={article.description.join('\n')}
                             onChange={(e) => updateArticle(article.id, 'description', e.target.value.split('\n').filter(line => line.trim() !== ''))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y min-h-[42px]"
                             placeholder="Ex: Création d'un site vitrine responsive avec 5 pages"
-                            rows={2}
+                            rows={1}
+                            style={{ minHeight: '42px' }}
                           />
                         </div>
                       </div>
