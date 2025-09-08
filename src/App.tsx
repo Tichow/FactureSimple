@@ -2954,7 +2954,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
               </h1>
               <p className="text-gray-600">
                 {invoiceStatus === 'draft' 
-                  ? 'Modifiez les informations et finalisez votre facture avant de passer à la suivante' 
+                  ? 'Modifiez les informations, enregistrez-les et finalisez votre facture avant de passer à la suivante' 
                   : 'Cette facture a été finalisée et ne peut plus être modifiée'
                 }
               </p>
@@ -3137,7 +3137,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         {/* Gestion des articles */}
         <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-xl font-semibold text-gray-900">
               Produits/Services
             </h3>
             {invoiceStatus === 'draft' && (
@@ -3293,149 +3293,10 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
           </div>
         </div>
 
-        {/* Informations émetteur */}
-        <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Informations émetteur</h3>
-            {invoiceStatus === 'draft' && (
-              <button
-                onClick={async () => {
-                  if (editingCompany) {
-                    // Sauvegarder automatiquement lors de la fin d'édition
-                    await saveUserProfile(false);
-                  }
-                  setEditingCompany(!editingCompany);
-                }}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-300 text-blue-600 hover:text-blue-700 rounded-lg transition-all duration-200"
-              >
-                {editingCompany ? <Check className="w-4 h-4" /> : <Edit className="w-4 h-4" />}
-                <span>{editingCompany ? 'Mettre à jour' : 'Modifier'}</span>
-              </button>
-            )}
-          </div>
-
-          {editingCompany ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
-                <input
-                  type="text"
-                  value={companyInfo.firstName}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, firstName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Votre prénom"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                <input
-                  type="text"
-                  value={companyInfo.lastName}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, lastName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Votre nom de famille"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nom de l'entreprise</label>
-                <input
-                  type="text"
-                  value={companyInfo.companyName}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, companyName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Ex: Mon Entreprise SARL"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                <AddressAutocomplete
-                  value={companyInfo.address}
-                  onChange={(address) => setCompanyInfo({ ...companyInfo, address })}
-                  onSelect={(suggestion) => {
-                    setCompanyInfo({
-                      ...companyInfo,
-                      address: suggestion.street ? `${suggestion.housenumber || ''} ${suggestion.street}`.trim() : suggestion.label,
-                      postalCode: suggestion.postcode || '',
-                      city: suggestion.city || ''
-                    });
-                  }}
-                  placeholder="Tapez votre adresse..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Code postal</label>
-                <input
-                  type="text"
-                  value={companyInfo.postalCode}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, postalCode: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="75001"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ville</label>
-                <input
-                  type="text"
-                  value={companyInfo.city}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, city: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Paris"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
-                <input
-                  type="text"
-                  value={companyInfo.phone}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, phone: formatPhoneNumber(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="01 23 45 67 89"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={companyInfo.email}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="contact@entreprise.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">SIRET</label>
-                <input
-                  type="text"
-                  value={companyInfo.siret}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, siret: formatSiret(e.target.value) })}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    companyInfo.siret && !validateSiret(companyInfo.siret) 
-                      ? 'border-red-300 bg-red-50' 
-                      : 'border-gray-300'
-                  }`}
-                  placeholder="XXX XXX XXX XXXXX"
-                />
-                {companyInfo.siret && !validateSiret(companyInfo.siret) && (
-                  <p className="text-red-600 text-xs mt-1">Le SIRET doit contenir exactement 14 chiffres</p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="text-sm text-gray-600">
-              <p className="font-bold text-gray-900">{companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`}</p>
-              <p>{companyInfo.address}</p>
-              <p>{companyInfo.postalCode} {companyInfo.city}</p>
-              <p>Tél: {formatPhoneNumber(companyInfo.phone)}</p>
-              <p>SIRET: {formatSiret(companyInfo.siret)}</p>
-            </div>
-          )}
-        </div>
-
         {/* Informations client */}
         <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Informations client</h3>
+            <h3 className="text-xl font-semibold text-gray-900">Informations client</h3>
           {invoiceStatus === 'draft' && (
               <div className="flex items-center gap-2 md:gap-3 flex-wrap">
                 {clients.length > 0 ? (
@@ -3731,7 +3592,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
   </div>
 ) : (
   // Affichage en lecture seule
-  <div className="text-sm text-gray-600">
+  <div className="text-base text-gray-600">
     {clients.length > 0 ? (
       <>
         <p className="font-bold text-gray-900">{clientInfo.firstName} {clientInfo.lastName}</p>
@@ -3747,6 +3608,145 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
     )}
   </div>
 )}
+        </div>
+
+        {/* Informations émetteur */}
+        <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-semibold text-gray-900">Informations émetteur</h3>
+            {invoiceStatus === 'draft' && (
+              <button
+                onClick={async () => {
+                  if (editingCompany) {
+                    // Sauvegarder automatiquement lors de la fin d'édition
+                    await saveUserProfile(false);
+                  }
+                  setEditingCompany(!editingCompany);
+                }}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-300 text-blue-600 hover:text-blue-700 rounded-lg transition-all duration-200"
+              >
+                {editingCompany ? <Check className="w-4 h-4" /> : <Edit className="w-4 h-4" />}
+                <span>{editingCompany ? 'Mettre à jour' : 'Modifier'}</span>
+              </button>
+            )}
+          </div>
+
+          {editingCompany ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
+                <input
+                  type="text"
+                  value={companyInfo.firstName}
+                  onChange={(e) => setCompanyInfo({ ...companyInfo, firstName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="Votre prénom"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+                <input
+                  type="text"
+                  value={companyInfo.lastName}
+                  onChange={(e) => setCompanyInfo({ ...companyInfo, lastName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="Votre nom de famille"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nom de l'entreprise</label>
+                <input
+                  type="text"
+                  value={companyInfo.companyName}
+                  onChange={(e) => setCompanyInfo({ ...companyInfo, companyName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="Ex: Mon Entreprise SARL"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                <AddressAutocomplete
+                  value={companyInfo.address}
+                  onChange={(address) => setCompanyInfo({ ...companyInfo, address })}
+                  onSelect={(suggestion) => {
+                    setCompanyInfo({
+                      ...companyInfo,
+                      address: suggestion.street ? `${suggestion.housenumber || ''} ${suggestion.street}`.trim() : suggestion.label,
+                      postalCode: suggestion.postcode || '',
+                      city: suggestion.city || ''
+                    });
+                  }}
+                  placeholder="Tapez votre adresse..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Code postal</label>
+                <input
+                  type="text"
+                  value={companyInfo.postalCode}
+                  onChange={(e) => setCompanyInfo({ ...companyInfo, postalCode: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="75001"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ville</label>
+                <input
+                  type="text"
+                  value={companyInfo.city}
+                  onChange={(e) => setCompanyInfo({ ...companyInfo, city: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="Paris"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+                <input
+                  type="text"
+                  value={companyInfo.phone}
+                  onChange={(e) => setCompanyInfo({ ...companyInfo, phone: formatPhoneNumber(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="01 23 45 67 89"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={companyInfo.email}
+                  onChange={(e) => setCompanyInfo({ ...companyInfo, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="contact@entreprise.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">SIRET</label>
+                <input
+                  type="text"
+                  value={companyInfo.siret}
+                  onChange={(e) => setCompanyInfo({ ...companyInfo, siret: formatSiret(e.target.value) })}
+                  className={`w-full px-3 py-2 border rounded-lg ${
+                    companyInfo.siret && !validateSiret(companyInfo.siret) 
+                      ? 'border-red-300 bg-red-50' 
+                      : 'border-gray-300'
+                  }`}
+                  placeholder="XXX XXX XXX XXXXX"
+                />
+                {companyInfo.siret && !validateSiret(companyInfo.siret) && (
+                  <p className="text-red-600 text-xs mt-1">Le SIRET doit contenir exactement 14 chiffres</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="text-base text-gray-600">
+              <p className="font-bold text-gray-900">{companyInfo.companyName || `${companyInfo.firstName} ${companyInfo.lastName}`}</p>
+              <p>{companyInfo.address}</p>
+              <p>{companyInfo.postalCode} {companyInfo.city}</p>
+              <p>Tél: {formatPhoneNumber(companyInfo.phone)}</p>
+              <p>SIRET: {formatSiret(companyInfo.siret)}</p>
+            </div>
+          )}
         </div>
 
 
@@ -5612,10 +5612,10 @@ const SettingsModal: React.FC<{
                         </div>
                       </div>
                       
-                      {/* Deuxième ligne: Quantité et Prix */}
+                      {/* Deuxième ligne: Quantité par défaut et Prix */}
                       <div className="grid md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Quantité (par défaut)</label>
                           <input
                             type="number"
                             value={article.quantity}
