@@ -1346,8 +1346,8 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         setClientInfo(profile.default_client_info);
         setArticles(profile.default_articles.length > 0 ? profile.default_articles : [{
           id: '1',
-          name: 'Service',
-          description: ['Description du service'],
+          name: 'Nouveau produit',
+          description: [],
           quantity: 1,
           unit: 'Heure(s)',
           unitPrice: 0,
@@ -1662,8 +1662,8 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
   const [articles, setArticles] = useState<Article[]>([
     {
       id: '1',
-      name: 'Produit',
-      description: ['Description du produit'],
+      name: 'Nouveau produit',
+      description: [],
       quantity: 1,
       unit: 'Unité',
       unitPrice: 0,
@@ -1693,8 +1693,8 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
   const addArticle = () => {
     const newArticle: Article = {
       id: Date.now().toString(),
-      name: 'Nouvel article',
-      description: ['Description'],
+      name: 'Nouveau produit',
+      description: [],
       quantity: 1,
       unit: 'Unité',
       unitPrice: 0,
@@ -2328,28 +2328,46 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         
         // Fonction pour dessiner un article
         const drawArticle = (article: Article, index: number, contentY: number) => {
-          const articleHeight = Math.max(20, article.description.length * 4 + 10);
+          // Largeur disponible pour la colonne article (de margin + 20 à margin + 85)
+          const articleColumnWidth = 80;
           
           doc.setFont(undefined, 'normal');
           doc.setFontSize(10);
           doc.setTextColor(...black);
           doc.text((index + 1).toString(), margin + 5, contentY + 8);
           
-          // Article et description
+          // Nom de l'article avec retour à la ligne automatique
           doc.setFont(undefined, 'bold');
-          doc.text(article.name, margin + 20, contentY + 8);
+          doc.setFontSize(10);
+          const nameLines = doc.splitTextToSize(article.name, articleColumnWidth);
+          let currentY = contentY + 8;
+          nameLines.forEach((line: string) => {
+            doc.text(line, margin + 20, currentY);
+            currentY += 4;
+          });
           
+          // Description avec retour à la ligne automatique
           doc.setFontSize(8);
           doc.setFont(undefined, 'normal');
           doc.setTextColor(...lightGray);
           
-          let descY = contentY + 12;
+          let descY = currentY + 2;
           article.description.forEach((desc) => {
-            doc.text(desc, margin + 20, descY);
-            descY += 4;
+            const descLines = doc.splitTextToSize(desc, articleColumnWidth);
+            descLines.forEach((line: string) => {
+              doc.text(line, margin + 20, descY);
+              descY += 3.5;
+            });
           });
           
-          // Quantité
+          // Calculer la hauteur totale nécessaire
+          const totalLines = nameLines.length + article.description.reduce((total, desc) => {
+            const descLines = doc.splitTextToSize(desc, articleColumnWidth);
+            return total + descLines.length;
+          }, 0);
+          const articleHeight = Math.max(20, (totalLines * 4) + 8);
+          
+          // Quantité (centrée verticalement)
           doc.setFontSize(10);
           doc.setTextColor(...black);
           doc.setFont(undefined, 'bold');
@@ -2359,7 +2377,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
           doc.setTextColor(...lightGray);
           doc.text(article.quantity > 1 ? `${article.unit}s` : article.unit, margin + 105, contentY + 12, { align: 'center' });
           
-          // Prix et total
+          // Prix et total (centrés verticalement)
           doc.setFontSize(10);
           doc.setTextColor(...black);
           doc.text(`${article.unitPrice.toFixed(2)} €`, margin + 137, contentY + 8, { align: 'right' });
@@ -2978,59 +2996,77 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
             {articles.map((article, index) => (
               <div key={article.id} className="border border-gray-200 rounded-lg p-4">
 {editingArticles ? (
-  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-      <input
-        type="text"
-        value={article.name}
-        onChange={(e) => updateArticle(article.id, { name: e.target.value })}
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-      />
+  <div className="space-y-4">
+    {/* Première ligne: Nom et Description */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Nom du produit</label>
+        <input
+          type="text"
+          value={article.name}
+          onChange={(e) => updateArticle(article.id, { name: e.target.value })}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Ex: Développement site web"
+        />
+      </div>
+      
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <textarea
+          value={article.description.join('\n')}
+          onChange={(e) => updateArticle(article.id, { description: e.target.value.split('\n').filter(line => line.trim() !== '') })}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          placeholder="Ex: Création d'un site vitrine responsive avec 5 pages"
+          rows={2}
+        />
+      </div>
     </div>
     
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label>
-      <input
-        type="number"
-        defaultValue={article.quantity}
-        onBlur={(e) => {
-          const value = parseFloat(e.target.value) || 1;
-          updateArticle(article.id, { quantity: value });
-        }}
-        placeholder="Ex: 5"
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        step="1"
-        min="1"
-      />
-    </div>
-    
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">Prix unitaire (€)</label>
-      <input
-        type="number"
-        defaultValue={article.unitPrice}
-        onBlur={(e) => {
-          const value = parseFloat(e.target.value) || 0;
-          updateArticle(article.id, { unitPrice: value });
-        }}
-        placeholder="Ex: 25.50"
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        step="0.01"
-        min="0"
-      />
-    </div>
-    
-    <div className="flex items-end">
-      <button
-        onClick={() => {
-          setArticleToDelete(article.id);
-          setShowDeleteArticleConfirmation(true);
-        }}
-        className="p-2 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 rounded-lg transition-all duration-200"
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
+    {/* Deuxième ligne: Quantité, Prix et Suppression */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label>
+        <input
+          type="number"
+          defaultValue={article.quantity}
+          onBlur={(e) => {
+            const value = parseFloat(e.target.value) || 1;
+            updateArticle(article.id, { quantity: value });
+          }}
+          placeholder="Ex: 5"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          step="1"
+          min="1"
+        />
+      </div>
+      
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Prix unitaire (€)</label>
+        <input
+          type="number"
+          defaultValue={article.unitPrice}
+          onBlur={(e) => {
+            const value = parseFloat(e.target.value) || 0;
+            updateArticle(article.id, { unitPrice: value });
+          }}
+          placeholder="Ex: 25.50"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          step="0.01"
+          min="0"
+        />
+      </div>
+      
+      <div className="md:col-span-2 flex items-end justify-end">
+        <button
+          onClick={() => {
+            setArticleToDelete(article.id);
+            setShowDeleteArticleConfirmation(true);
+          }}
+          className="p-2 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 rounded-lg transition-all duration-200"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   </div>
 ) : (
@@ -4045,14 +4081,25 @@ const generatePDFBlob = async (
       doc.setFont(undefined, 'normal');
       articles.forEach(article => {
         currentX = tableX;
-        doc.text(article.name, currentX + 2, tableY + 5);
+        
+        // Nom de l'article avec retour à la ligne si nécessaire
+        const nameLines = doc.splitTextToSize(article.name, colWidths[0] - 4);
+        let lineY = tableY + 5;
+        nameLines.forEach((line: string) => {
+          doc.text(line, currentX + 2, lineY);
+          lineY += 4;
+        });
+        
         currentX += colWidths[0];
         doc.text(article.quantity.toString(), currentX + 2, tableY + 5);
         currentX += colWidths[1];
         doc.text(`${article.unitPrice.toFixed(2)} €`, currentX + 2, tableY + 5);
         currentX += colWidths[2];
         doc.text(`${article.total.toFixed(2)} €`, currentX + 2, tableY + 5);
-        tableY += 6;
+        
+        // Ajuster la hauteur selon le nombre de lignes du nom
+        const lineHeight = Math.max(6, nameLines.length * 4);
+        tableY += lineHeight;
       });
 
       // Total
@@ -4720,8 +4767,8 @@ const SettingsModal: React.FC<{
   const addArticle = () => {
     const newArticle: Article = {
       id: Date.now().toString(),
-      name: 'Nouveau service',
-      description: ['Description du service'],
+      name: 'Nouveau produit',
+      description: [],
       quantity: 1,
       unit: 'Unité',
       unitPrice: 0,
@@ -5248,36 +5295,58 @@ const SettingsModal: React.FC<{
               <div className="space-y-4">
                 {articles.map((article) => (
                   <div key={article.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="grid md:grid-cols-4 gap-4">
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nom du service</label>
-                        <input
-                          type="text"
-                          value={article.name}
-                          onChange={(e) => updateArticle(article.id, 'name', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
+                    <div className="space-y-4">
+                      {/* Première ligne: Nom et Description */}
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Nom du produit</label>
+                          <input
+                            type="text"
+                            value={article.name}
+                            onChange={(e) => updateArticle(article.id, 'name', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Ex: Développement site web"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                          <textarea
+                            value={article.description.join('\n')}
+                            onChange={(e) => updateArticle(article.id, 'description', e.target.value.split('\n').filter(line => line.trim() !== ''))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                            placeholder="Ex: Création d'un site vitrine responsive avec 5 pages"
+                            rows={2}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label>
-                        <input
-                          type="number"
-                          value={article.quantity}
-                          onChange={(e) => updateArticle(article.id, 'quantity', parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Prix unitaire (€)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={article.unitPrice}
-                          onChange={(e) => updateArticle(article.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
+                      
+                      {/* Deuxième ligne: Quantité et Prix */}
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label>
+                          <input
+                            type="number"
+                            value={article.quantity}
+                            onChange={(e) => updateArticle(article.id, 'quantity', parseFloat(e.target.value) || 0)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            min="1"
+                            step="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Prix unitaire (€)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={article.unitPrice}
+                            onChange={(e) => updateArticle(article.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            min="0"
+                          />
+                        </div>
                       </div>
                     </div>
+                    
                     <div className="mt-4 flex justify-between items-center">
                       <div className="text-sm text-gray-600">
                         Total: {article.total.toFixed(2)} €

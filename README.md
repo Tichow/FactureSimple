@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 🧾 FactureSimple
 
 **Application de facturation moderne, sécurisée et multi-utilisateur**
@@ -243,6 +242,3 @@ Ce projet est sous licence MIT. Voir `LICENSE` pour plus de détails.
 ---
 
 **🎉 Fait avec ❤️ pour simplifier la facturation !**
-=======
-# FactureSimple
->>>>>>> 83d6de1da18202a4dd79a861f440688c9dfe40a2
