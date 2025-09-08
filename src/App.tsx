@@ -1346,7 +1346,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         setClientInfo(profile.default_client_info);
         setArticles(profile.default_articles.length > 0 ? profile.default_articles : [{
           id: '1',
-          name: 'Nouveau produit',
+          name: 'Nouveau produit/service',
           description: [],
           quantity: 1,
           unit: 'Heure(s)',
@@ -1702,7 +1702,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
     };
     
     if (checkDuplicateArticleName(newArticle.name)) {
-      setDuplicateMessage(`Un produit nommé "${newArticle.name}" existe déjà. Créer quand même ? Cela peut causer de la confusion.`);
+      setDuplicateMessage(`Un produit/service nommé "${newArticle.name}" existe déjà. Créer quand même ? Cela peut causer de la confusion.`);
       setDuplicateAction(() => () => setArticles([...articles, newArticle]));
       setShowDuplicateConfirmation(true);
     } else {
@@ -2961,7 +2961,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
-              Produits
+              Produits/Services/Services
             </h3>
             {invoiceStatus === 'draft' && (
               <button
@@ -3000,7 +3000,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
     {/* Première ligne: Nom et Description */}
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Nom du produit</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Nom du produit/service</label>
         <input
           type="text"
           value={article.name}
@@ -3217,7 +3217,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
                       ? 'border-red-300 bg-red-50' 
                       : 'border-gray-300'
                   }`}
-                  placeholder="123 456 789 00012"
+                  placeholder="XXX XXX XXX XXXXX"
                 />
                 {companyInfo.siret && !validateSiret(companyInfo.siret) && (
                   <p className="text-red-600 text-xs mt-1">Le SIRET doit contenir exactement 14 chiffres</p>
@@ -3602,7 +3602,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         {/* Modal de confirmation de suppression d'article */}
         {showDeleteArticleConfirmation && (
           <ConfirmationModal
-            message="Êtes-vous sûr de vouloir supprimer ce produit ? Cette action est irréversible."
+            message="Êtes-vous sûr de vouloir supprimer ce produit/service ? Cette action est irréversible."
             onConfirm={() => {
               if (articleToDelete) {
                 deleteArticle(articleToDelete);
@@ -4408,7 +4408,7 @@ const PreviewModal: React.FC<{
             </div>
           </div>
 
-          {/* Tableau des produits - synchronisé avec PDF */}
+          {/* Tableau des produits/services - synchronisé avec PDF */}
           <div className="border border-gray-200 overflow-hidden mb-8" style={{ borderRadius: '0' }}>
             <table className="w-full" style={{ fontSize: '9px' }}>
               <thead style={{ backgroundColor: '#f8fafc' }}>
@@ -4776,7 +4776,7 @@ const SettingsModal: React.FC<{
     };
     
     if (checkDuplicateArticleName(newArticle.name)) {
-      setDuplicateMessage(`Un produit nommé "${newArticle.name}" existe déjà. Créer quand même ? Cela peut causer de la confusion.`);
+      setDuplicateMessage(`Un produit/service nommé "${newArticle.name}" existe déjà. Créer quand même ? Cela peut causer de la confusion.`);
       setDuplicateAction(() => () => setArticles([...articles, newArticle]));
       setShowDuplicateConfirmation(true);
     } else {
@@ -4850,7 +4850,7 @@ const SettingsModal: React.FC<{
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            Produits
+            Produits/Services
           </button>
         </div>
 
@@ -5005,7 +5005,7 @@ const SettingsModal: React.FC<{
                         ? 'border-red-300 bg-red-50' 
                         : 'border-gray-300'
                     }`}
-                    placeholder="123 456 789 00012"
+                    placeholder="XXX XXX XXX XXXXX"
                   />
                   {companyInfo.siret && !validateSiret(companyInfo.siret) && (
                     <p className="text-red-600 text-xs mt-1">Le SIRET doit contenir exactement 14 chiffres</p>
@@ -5282,7 +5282,7 @@ const SettingsModal: React.FC<{
           {activeTab === 'articles' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium text-gray-900">Gestion des produits</h3>
+                <h3 className="text-lg font-medium text-gray-900">Gestion des produits/services</h3>
                 <button
                   onClick={addArticle}
                   className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
@@ -5299,7 +5299,7 @@ const SettingsModal: React.FC<{
                       {/* Première ligne: Nom et Description */}
                       <div className="grid md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Nom du produit</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Nom du produit/service</label>
                           <input
                             type="text"
                             value={article.name}
