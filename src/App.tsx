@@ -3477,7 +3477,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
             ? 'border-red-300 bg-red-50' 
             : 'border-gray-300'
         }`}
-        placeholder="520 091 992 00039"
+        placeholder="123 456 789 01234"
       />
       {clientInfo.siret && !validateSiret(clientInfo.siret) && (
         <p className="text-red-600 text-xs mt-1">Le SIRET doit contenir exactement 14 chiffres</p>
@@ -5005,7 +5005,7 @@ const SettingsModal: React.FC<{
                         ? 'border-red-300 bg-red-50' 
                         : 'border-gray-300'
                     }`}
-                    placeholder="XXX XXX XXX XXXXX"
+                    placeholder="123 456 789 01234"
                   />
                   {companyInfo.siret && !validateSiret(companyInfo.siret) && (
                     <p className="text-red-600 text-xs mt-1">Le SIRET doit contenir exactement 14 chiffres</p>
