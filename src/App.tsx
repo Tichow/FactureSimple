@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Calendar, Download, LogOut, Mail, Lock, Eye, EyeOff, Edit, Plus, Trash2, Save, X, History, FileText, AlertTriangle, Check } from 'lucide-react';
+import { Calendar, Download, LogOut, Mail, Lock, Eye, EyeOff, Edit, Plus, Trash2, Save, X, History, FileText, AlertTriangle, Check, Home, Settings, Receipt, ArrowRight } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 // Types TypeScript
@@ -1196,6 +1196,9 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
   const [duplicateAction, setDuplicateAction] = useState<() => void>(() => {});
   const [showFinalizeConfirmation, setShowFinalizeConfirmation] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  
+  // État pour gérer les vues du dashboard
+  const [currentDashboardView, setCurrentDashboardView] = useState<'home' | 'nouvelle-facture' | 'mes-factures' | 'mes-infos'>('home');
 
   // Fonctions utilitaires
   const formatPhoneNumber = (phone: string) => {
@@ -2644,36 +2647,212 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
     }
   };
 
+  // Composant pour la vue d'accueil du dashboard
+  const DashboardHome = () => {
+    const hasDraftInProgress = invoiceStatus === 'draft' && currentInvoiceId;
+    const [dashboardHistory, setDashboardHistory] = useState<SavedInvoice[]>([]);
+    
+    // Charger l'historique pour les statistiques
+    useEffect(() => {
+      const loadDashboardHistory = async () => {
+        const history = await getInvoiceHistory();
+        setDashboardHistory(history);
+      };
+      loadDashboardHistory();
+    }, []);
+    
+    return (
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Bienvenue dans votre espace facturation
+          </h1>
+          <p className="text-xl text-gray-600">
+            Bonjour {companyInfo.firstName || user.email?.split('@')[0]} ! Que souhaitez-vous faire aujourd'hui ?
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 w-full">
+          {/* Carte 1 : Nouvelle facture ou Reprendre brouillon */}
+          <div 
+            onClick={() => {
+              // Si on a un brouillon, on continue, sinon on crée une nouvelle facture
+              if (hasDraftInProgress) {
+                setCurrentDashboardView('nouvelle-facture');
+              } else {
+                createNewInvoice();
+                setCurrentDashboardView('nouvelle-facture');
+              }
+            }}
+            className="bg-white rounded-2xl p-6 md:p-8 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer border-2 border-transparent hover:border-blue-500 group"
+          >
+            <div className="text-center">
+              <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-blue-200 transition-colors">
+                <Receipt className="w-8 h-8 text-blue-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                {hasDraftInProgress ? 'Reprendre brouillon' : 'Nouvelle facture'}
+              </h3>
+              <p className="text-gray-600 mb-4">
+                {hasDraftInProgress 
+                  ? `Continuez la facture ${invoice.invoiceNumber} en cours de rédaction`
+                  : 'Créez une nouvelle facture pour vos clients'
+                }
+              </p>
+              {!hasDraftInProgress && (
+                <div className="text-xs text-gray-500 mb-6 flex items-center justify-center space-x-4">
+                  <span className="flex items-center space-x-1">
+                    <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
+                    <span>Brouillon</span>
+                  </span>
+                  <span>→</span>
+                  <span className="flex items-center space-x-1">
+                    <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                    <span>Finalisée</span>
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-center text-blue-600 group-hover:text-blue-700 font-medium">
+                {hasDraftInProgress ? 'Continuer' : 'Commencer'}
+                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+          </div>
+
+          {/* Carte 2 : Mes factures */}
+          <div 
+            onClick={() => setCurrentDashboardView('mes-factures')}
+            className="bg-white rounded-2xl p-6 md:p-8 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer border-2 border-transparent hover:border-green-500 group"
+          >
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-green-200 transition-colors">
+                <History className="w-8 h-8 text-green-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                Mes factures
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Consultez et téléchargez vos factures précédentes
+              </p>
+              <div className="flex items-center justify-center text-green-600 group-hover:text-green-700 font-medium">
+                Consulter
+                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+          </div>
+
+          {/* Carte 3 : Gérer mes infos */}
+          <div 
+            onClick={() => setCurrentDashboardView('mes-infos')}
+            className="bg-white rounded-2xl p-6 md:p-8 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer border-2 border-transparent hover:border-purple-500 group"
+          >
+            <div className="text-center">
+              <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-purple-200 transition-colors">
+                <Settings className="w-8 h-8 text-purple-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                Gérer mes infos
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Modifiez vos informations personnelles et d'entreprise
+              </p>
+              <div className="flex items-center justify-center text-purple-600 group-hover:text-purple-700 font-medium">
+                Modifier
+                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Statistiques rapides (optionnel) */}
+        {dashboardHistory.length > 0 && (
+          <div className="mt-8 bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Aperçu rapide</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{dashboardHistory.length}</div>
+                <div className="text-sm text-gray-600">Factures créées</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {dashboardHistory.filter((inv: SavedInvoice) => inv.status === 'finalized').length}
+                </div>
+                <div className="text-sm text-gray-600">Factures finalisées</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">
+                  {dashboardHistory.filter((inv: SavedInvoice) => inv.status === 'draft').length}
+                </div>
+                <div className="text-sm text-gray-600">Brouillons</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <img 
-              src="/logo512.png" 
-              alt="FactureSimple" 
-              className="w-8 h-8 rounded-lg"
-            />
-            <span className="font-semibold text-gray-900">FactureSimple</span>
+          <div className="flex items-center space-x-4">
+            {/* Logo cliquable pour retour à l'accueil */}
+            <button
+              onClick={() => setCurrentDashboardView('home')}
+              className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+            >
+              <img 
+                src="/logo512.png" 
+                alt="FactureSimple" 
+                className="w-8 h-8 rounded-lg"
+              />
+            </button>
           </div>
           
           <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600 hidden md:block">
-              Bonjour, {companyInfo.firstName || user.email}
-            </span>
+            {/* Bouton dynamique : Reprendre brouillon ou Nouvelle facture */}
             <button
-              onClick={() => setShowHistory(true)}
+              onClick={() => {
+                // Si on a un brouillon, on continue, sinon on crée une nouvelle facture
+                if (invoiceStatus === 'draft' && currentInvoiceId) {
+                  setCurrentDashboardView('nouvelle-facture');
+                } else {
+                  createNewInvoice();
+                  setCurrentDashboardView('nouvelle-facture');
+                }
+              }}
+              className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 px-3 py-2 rounded-lg hover:bg-blue-50 transition-all duration-200"
+            >
+              {invoiceStatus === 'draft' && currentInvoiceId ? (
+                <>
+                  <Receipt className="w-4 h-4" />
+                  <span className="hidden sm:inline">Reprendre brouillon</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Nouvelle facture</span>
+                </>
+              )}
+            </button>
+            
+            {/* Mes Factures */}
+            <button
+              onClick={() => setCurrentDashboardView('mes-factures')}
               className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 px-3 py-2 rounded-lg hover:bg-blue-50 transition-all duration-200"
             >
               <History className="w-4 h-4" />
               <span className="hidden sm:inline">Mes Factures</span>
             </button>
+            
+            {/* Mes Infos */}
             <button
-              onClick={() => setShowSettings(true)}
+              onClick={() => setCurrentDashboardView('mes-infos')}
               className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 px-3 py-2 rounded-lg hover:bg-blue-50 transition-all duration-200"
             >
-              <Edit className="w-4 h-4" />
+              <Settings className="w-4 h-4" />
               <span className="hidden sm:inline">Mes Infos</span>
             </button>
             
@@ -2685,6 +2864,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
               </div>
             )}
             
+            {/* Déconnexion */}
             <button
               onClick={() => setShowLogoutConfirm(true)}
               className="flex items-center space-x-2 text-red-600 hover:text-red-800 px-3 py-2 rounded-lg hover:bg-red-50 transition-all duration-200"
@@ -2696,7 +2876,7 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-12">
+      <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Avertissement mode démo */}
         {!isSupabaseConfigured && (
           <div className="mb-6 bg-orange-50 border border-orange-200 rounded-2xl p-4">
@@ -2763,17 +2943,22 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
           </div>
         )}
 
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {invoiceStatus === 'draft' ? 'Facture en cours' : 'Facture finalisée'}
-          </h1>
-          <p className="text-gray-600">
-            {invoiceStatus === 'draft' 
-              ? 'Modifiez les informations et finalisez votre facture' 
-              : 'Cette facture a été finalisée et ne peut plus être modifiée'
-            }
-          </p>
-        </div>
+        {/* Contenu principal selon la vue sélectionnée */}
+        {currentDashboardView === 'home' && <DashboardHome />}
+        
+        {currentDashboardView === 'nouvelle-facture' && (
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                {invoiceStatus === 'draft' ? 'Facture en cours...' : 'Facture finalisée'}
+              </h1>
+              <p className="text-gray-600">
+                {invoiceStatus === 'draft' 
+                  ? 'Modifiez les informations et finalisez votre facture avant de passer à la suivante' 
+                  : 'Cette facture a été finalisée et ne peut plus être modifiée'
+                }
+              </p>
+            </div>
 
         {/* Statut et actions de la facture */}
         <div className="mb-8 bg-white rounded-2xl shadow-lg p-6">
@@ -2792,21 +2977,24 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
             
             <div className="flex flex-col sm:flex-row gap-2">
               {invoiceStatus === 'draft' && (
-                <button
-                  onClick={() => setShowFinalizeConfirmation(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Finaliser la facture</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => setShowFinalizeConfirmation(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 group relative"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Finaliser la facture</span>
+                    
+                    {/* Tooltip au survol */}
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                      <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap">
+                        Une fois finalisée, impossible de modifier
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </button>
+                </>
               )}
-              <button
-                onClick={createNewInvoice}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Nouvelle facture</span>
-              </button>
             </div>
           </div>
         </div>
@@ -2942,7 +3130,6 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
         */}
 
         {/* Modal Historique */}
-        {showHistory && <HistoryModal onClose={() => setShowHistory(false)} onLoadInvoice={loadInvoiceFromHistory} getHistory={getInvoiceHistory} />}
 
         {/* Modal Confirmation */}
         {showConfirmDialog && <ConfirmationModal message={confirmMessage} onConfirm={executeConfirmedAction} onCancel={() => setShowConfirmDialog(false)} />}
@@ -2984,11 +3171,11 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
 
           <div className="space-y-4">
             {articles.map((article, index) => (
-              <div key={article.id} className="border border-gray-200 rounded-lg p-4">
+              <div key={article.id} className="border border-gray-200 rounded-lg p-4 min-h-fit">
 {editingArticles ? (
   <div className="space-y-4">
     {/* Première ligne: Nom et Description */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Nom du produit/service</label>
         <input
@@ -3003,12 +3190,31 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
         <textarea
+          ref={(textarea) => {
+            // Auto-resize initial sur mobile
+            if (textarea && window.innerWidth < 768) {
+              setTimeout(() => {
+                textarea.style.height = 'auto';
+                textarea.style.height = Math.min(textarea.scrollHeight, 168) + 'px';
+              }, 0);
+            }
+          }}
           value={article.description.join('\n')}
-          onChange={(e) => updateArticle(article.id, { description: e.target.value.split('\n').filter(line => line.trim() !== '') })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y min-h-[42px]"
+          onChange={(e) => {
+            updateArticle(article.id, { description: e.target.value.split('\n').filter(line => line.trim() !== '') });
+          }}
+          onInput={(e) => {
+            // Auto-resize sur mobile lors de la saisie
+            const textarea = e.target as HTMLTextAreaElement;
+            if (window.innerWidth < 768) {
+              textarea.style.height = 'auto';
+              textarea.style.height = Math.min(textarea.scrollHeight, 168) + 'px';
+            }
+          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none md:resize-y min-h-[42px] max-h-[168px] overflow-y-auto"
           placeholder="Ex: Création d'un site vitrine responsive avec 5 pages"
           rows={1}
-          style={{ minHeight: '42px' }}
+          style={{ minHeight: '42px', maxHeight: '168px' }}
         />
       </div>
     </div>
@@ -3543,36 +3749,6 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
 )}
         </div>
 
-        {/* Modal Paramètres */}
-        {showSettings && (
-          <SettingsModal 
-            companyInfo={companyInfo}
-            setCompanyInfo={setCompanyInfo}
-            clientInfo={clientInfo}
-            setClientInfo={setClientInfo}
-            clients={clients}
-            setClients={setClients}
-            selectedClientIndex={selectedClientIndex}
-            setSelectedClientIndex={setSelectedClientIndex}
-            articles={articles}
-            setArticles={setArticles}
-            setClientToDeleteIndex={setClientToDeleteIndex}
-            setShowDeleteClientFromSettingsConfirmation={setShowDeleteClientFromSettingsConfirmation}
-            setArticleToDelete={setArticleToDelete}
-            setShowDeleteArticleConfirmation={setShowDeleteArticleConfirmation}
-            checkDuplicateArticleName={checkDuplicateArticleName}
-            setDuplicateMessage={setDuplicateMessage}
-            setDuplicateAction={setDuplicateAction}
-            setShowDuplicateConfirmation={setShowDuplicateConfirmation}
-            formatPhoneNumber={formatPhoneNumber}
-            formatSiret={formatSiret}
-            formatIban={formatIban}
-            validateSiret={validateSiret}
-            createClientWithCheck={createClientWithCheck}
-            onSave={saveUserProfile}
-            onClose={() => setShowSettings(false)}
-          />
-        )}
 
         {/* Modal de confirmation de suppression */}
         {showDeleteConfirmation && (
@@ -3651,14 +3827,120 @@ const Dashboard: React.FC<{ user: AppUser; onLogout: () => void }> = ({ user, on
 
         {/* Modal de confirmation pour la finalisation */}
         {showFinalizeConfirmation && (
-          <ConfirmationModal
-            message="Êtes-vous sûr de vouloir finaliser cette facture ? Cette action est irréversible et la facture ne pourra plus être modifiée."
-            onConfirm={() => {
-              finalizeInvoice();
-              setShowFinalizeConfirmation(false);
-            }}
-            onCancel={() => setShowFinalizeConfirmation(false)}
-          />
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-4">
+                  <Check className="w-6 h-6 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Finaliser la facture #{invoice.invoiceNumber} ?
+                </h3>
+                
+                {/* Informations importantes avec icônes */}
+                <div className="space-y-3 mb-6 text-sm">
+                  <div className="flex items-center space-x-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span className="text-amber-800">Cette action est <strong>irréversible</strong></span>
+                  </div>
+                  <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                    <span className="text-blue-800">Le numéro de facture sera <strong>définitif</strong></span>
+                  </div>
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <Edit className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                    <span className="text-gray-800">Plus de <strong>modifications possibles</strong></span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setShowFinalizeConfirmation(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 hover:border-gray-400 text-gray-700 rounded-lg transition-all duration-200"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => {
+                    finalizeInvoice();
+                    setShowFinalizeConfirmation(false);
+                  }}
+                  className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200"
+                >
+                  Finaliser
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+          </div>
+        )}
+        
+        {currentDashboardView === 'mes-factures' && (
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Mes factures
+              </h1>
+              <p className="text-gray-600">
+                Consultez et téléchargez vos factures précédentes
+              </p>
+            </div>
+            
+            <div className="bg-white rounded-2xl shadow-lg">
+              <HistoryModal 
+                onClose={() => setCurrentDashboardView('home')} 
+                onLoadInvoice={loadInvoiceFromHistory} 
+                getHistory={getInvoiceHistory} 
+                hideCloseButton={true}
+              />
+            </div>
+          </div>
+        )}
+        
+        {currentDashboardView === 'mes-infos' && (
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Gérer mes informations
+              </h1>
+              <p className="text-gray-600">
+                Modifiez vos informations personnelles et d'entreprise
+              </p>
+            </div>
+            
+            <div className="bg-white rounded-2xl shadow-lg">
+              <SettingsModal 
+                companyInfo={companyInfo}
+                clientInfo={clientInfo}
+                clients={clients}
+                selectedClientIndex={selectedClientIndex}
+                setSelectedClientIndex={setSelectedClientIndex}
+                articles={articles}
+                setCompanyInfo={setCompanyInfo}
+                setClientInfo={setClientInfo}
+                setClients={setClients}
+                setArticles={setArticles}
+                setClientToDeleteIndex={setClientToDeleteIndex}
+                setShowDeleteClientFromSettingsConfirmation={setShowDeleteClientFromSettingsConfirmation}
+                setArticleToDelete={setArticleToDelete}
+                setShowDeleteArticleConfirmation={setShowDeleteArticleConfirmation}
+                checkDuplicateArticleName={checkDuplicateArticleName}
+                setDuplicateMessage={setDuplicateMessage}
+                setDuplicateAction={setDuplicateAction}
+                setShowDuplicateConfirmation={setShowDuplicateConfirmation}
+                formatPhoneNumber={formatPhoneNumber}
+                formatSiret={formatSiret}
+                formatIban={formatIban}
+                validateSiret={validateSiret}
+                createClientWithCheck={createClientWithCheck}
+                onSave={() => saveUserProfile(true)}
+                onClose={() => setCurrentDashboardView('home')}
+                hideCloseButton={true}
+              />
+            </div>
+          </div>
         )}
       </main>
 
@@ -4494,7 +4776,8 @@ const HistoryModal: React.FC<{
   onClose: () => void;
   onLoadInvoice: (invoice: SavedInvoice) => void;
   getHistory: () => Promise<SavedInvoice[]>;
-}> = ({ onClose, onLoadInvoice, getHistory }) => {
+  hideCloseButton?: boolean;
+}> = ({ onClose, onLoadInvoice, getHistory, hideCloseButton = false }) => {
   const [history, setHistory] = useState<SavedInvoice[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -4514,16 +4797,18 @@ const HistoryModal: React.FC<{
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div className={hideCloseButton ? "w-full" : "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"}>
+      <div className={hideCloseButton ? "w-full" : "bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"}>
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900">Historique des factures</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl"
-          >
-            ×
-          </button>
+          {!hideCloseButton && (
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-2xl"
+            >
+              ×
+            </button>
+          )}
         </div>
 
         <div className="p-6">
@@ -4658,7 +4943,8 @@ const SettingsModal: React.FC<{
   createClientWithCheck: (clientData: ClientInfo, onConfirm: () => void) => void;
   onSave: () => void;
   onClose: () => void;
-}> = ({ companyInfo, setCompanyInfo, clientInfo, setClientInfo, clients, setClients, selectedClientIndex, setSelectedClientIndex, articles, setArticles, setClientToDeleteIndex, setShowDeleteClientFromSettingsConfirmation, setArticleToDelete, setShowDeleteArticleConfirmation, checkDuplicateArticleName, setDuplicateMessage, setDuplicateAction, setShowDuplicateConfirmation, formatPhoneNumber, formatSiret, formatIban, validateSiret, createClientWithCheck, onSave, onClose }) => {
+  hideCloseButton?: boolean;
+}> = ({ companyInfo, setCompanyInfo, clientInfo, setClientInfo, clients, setClients, selectedClientIndex, setSelectedClientIndex, articles, setArticles, setClientToDeleteIndex, setShowDeleteClientFromSettingsConfirmation, setArticleToDelete, setShowDeleteArticleConfirmation, checkDuplicateArticleName, setDuplicateMessage, setDuplicateAction, setShowDuplicateConfirmation, formatPhoneNumber, formatSiret, formatIban, validateSiret, createClientWithCheck, onSave, onClose, hideCloseButton = false }) => {
   const [activeTab, setActiveTab] = useState<'company' | 'client' | 'articles'>('company');
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
@@ -4792,16 +5078,18 @@ const SettingsModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div className={hideCloseButton ? "w-full" : "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"}>
+      <div className={hideCloseButton ? "w-full" : "bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"}>
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Gérer mes informations</h2>
-          <button 
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl"
-          >
-            ×
-          </button>
+          {!hideCloseButton && (
+            <button 
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          )}
         </div>
 
         {/* Onglets */}
@@ -5278,10 +5566,10 @@ const SettingsModal: React.FC<{
               
               <div className="space-y-4">
                 {articles.map((article) => (
-                  <div key={article.id} className="border border-gray-200 rounded-lg p-4">
+                  <div key={article.id} className="border border-gray-200 rounded-lg p-4 min-h-fit">
                     <div className="space-y-4">
                       {/* Première ligne: Nom et Description */}
-                      <div className="grid md:grid-cols-2 gap-4">
+                      <div className="grid md:grid-cols-2 gap-4 items-start">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Nom du produit/service</label>
                           <input
@@ -5295,12 +5583,31 @@ const SettingsModal: React.FC<{
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                           <textarea
+                            ref={(textarea) => {
+                              // Auto-resize initial sur mobile
+                              if (textarea && window.innerWidth < 768) {
+                                setTimeout(() => {
+                                  textarea.style.height = 'auto';
+                                  textarea.style.height = Math.min(textarea.scrollHeight, 168) + 'px';
+                                }, 0);
+                              }
+                            }}
                             value={article.description.join('\n')}
-                            onChange={(e) => updateArticle(article.id, 'description', e.target.value.split('\n').filter(line => line.trim() !== ''))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y min-h-[42px]"
+                            onChange={(e) => {
+                              updateArticle(article.id, 'description', e.target.value.split('\n').filter(line => line.trim() !== ''));
+                            }}
+                            onInput={(e) => {
+                              // Auto-resize sur mobile lors de la saisie
+                              const textarea = e.target as HTMLTextAreaElement;
+                              if (window.innerWidth < 768) {
+                                textarea.style.height = 'auto';
+                                textarea.style.height = Math.min(textarea.scrollHeight, 168) + 'px';
+                              }
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none md:resize-y min-h-[42px] max-h-[168px] overflow-y-auto"
                             placeholder="Ex: Création d'un site vitrine responsive avec 5 pages"
                             rows={1}
-                            style={{ minHeight: '42px' }}
+                            style={{ minHeight: '42px', maxHeight: '168px' }}
                           />
                         </div>
                       </div>
